@@ -1,4 +1,12 @@
+
+# PostPup
+
+This fork can only be used as a submodule of the monorepo because we hard-code links to the agilex-piper MJCF xml model file which is in the monorepo.
+
+
+
 # MuJoCo Playground
+
 
 [![Build](https://img.shields.io/github/actions/workflow/status/google-deepmind/mujoco_playground/ci.yml?branch=main)](https://github.com/google-deepmind/mujoco_playground/actions)
 [![PyPI version](https://img.shields.io/pypi/v/playground)](https://pypi.org/project/playground/)
