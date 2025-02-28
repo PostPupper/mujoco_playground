@@ -1,13 +1,15 @@
 <mujoco model="panda scene">
-    <include file="piper_rendered_normal.xml" />
+    <include file="piper_rendered_mjx.xml" />
     <include file="mailbox.xml" />
+
     <!-- <option
         timestep="0.005" iterations="5" ls_iterations="8" integrator="implicitfast">
         <flag eulerdamp="disable" />
     </option> -->
 
     <custom>
-        <numeric data="32" name="max_contact_points" />
+        <numeric data="30" name="max_contact_points" />
+        <numeric data="12" name="max_geom_pairs" />
     </custom>
 
     <visual>

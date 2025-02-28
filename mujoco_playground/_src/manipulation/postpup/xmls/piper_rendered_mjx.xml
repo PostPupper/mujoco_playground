@@ -19,25 +19,25 @@
 
     <asset>
         <mesh name="base_link"
-            file="../meshes/base_link.STL" />
+            file="./meshes/base_link.STL" />
         <mesh name="link1"
-            file="../meshes/link1.STL" />
+            file="./meshes/link1.STL" />
         <mesh name="link2"
-            file="../meshes/link2.STL" />
+            file="./meshes/link2.STL" />
         <mesh name="link3"
-            file="../meshes/link3.STL" />
+            file="./meshes/link3.STL" />
         <mesh name="link4"
-            file="../meshes/link4.STL" />
+            file="./meshes/link4.STL" />
         <mesh name="link5"
-            file="../meshes/link5.STL" />
+            file="./meshes/link5.STL" />
         <mesh name="link6"
-            file="../meshes/link6.STL" />
+            file="./meshes/link6.STL" />
         <mesh name="gripper_base"
-            file="../meshes/gripper_base.STL" />
+            file="./meshes/gripper_base.STL" />
         <mesh name="link7"
-            file="../meshes/link7.STL" />
+            file="./meshes/link7.STL" />
         <mesh name="link8"
-            file="../meshes/link8.STL" />
+            file="./meshes/link8.STL" />
     </asset>
 
     <worldbody>
@@ -71,14 +71,15 @@
                         size="0.1 0.02 0.04" quat="0.0871557 0 0 0.9961947"
                         rgba="1 0 0 0.3" />
 
-                    <!-- templated geom -->  <geom
+                    <!-- templated geom -->
+                    <geom
                         name="collision_base_pitch_motor" class="collision"
                         type="capsule"
                         pos="0 0 0"
                         size="0.03 0.04"
                         rgba="1 0 0 0.3"
-                        quat="0.0871557 0 0 0.9961947" />  <!-- templated geom --> 
-                            
+                        quat="0.0871557 0 0 0.9961947" />  <!-- templated geom -->
+
                     <body
                         name="lower_arm" pos="0.28503 0 0" quat="0.637536 0 0 -0.77042">
                         <inertial pos="-0.0202738 -0.133915 -0.000458683"
@@ -97,14 +98,16 @@
                             rgba="1 0 0 0.3" />
 
 
-                        <!-- templated geom -->  <geom
+                        <!-- templated geom -->
+                        <geom
                             name="collision_base_elbow_motor" class="collision"
                             type="capsule"
                             pos="0 0 0"
                             size="0.03 0.04"
                             rgba="1 0 0 0.3" /> <!-- templated geom -->
 
-                        <!-- templated geom -->  <geom
+                        <!-- templated geom -->
+                        <geom
                             name="collision_base_wrist_motor" class="collision"
                             type="box"
                             pos="-0.022 -0.185 0"
@@ -127,7 +130,8 @@
                                 mesh="link4" />
 
 
-                            <!-- templated geom -->  <geom
+                            <!-- templated geom -->
+                            <geom
                                 name="collision_wrist_motor2" class="collision"
                                 type="capsule"
                                 quat="0.707105 0.707108 0 0"
@@ -172,7 +176,8 @@
                                             type="box" pos="0 0 0.045"
                                             size="0.02 0.08 0.02" rgba="1 0 0 0.3" />
 
-                                        <!-- templated geom -->  <geom
+                                        <!-- templated geom -->
+                                        <geom
                                             name="collision_gripper_base" class="collision"
                                             type="box"
                                             quat="0.707105 0.707108 0 0"
