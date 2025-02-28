@@ -1,0 +1,271 @@
+<mujoco model="piper_description">
+    <compiler angle="radian" autolimits="true" />
+    <default>
+        <default class="gripper">
+            <joint damping="10" frictionloss="1" limited="true"
+                type="slide" />
+        </default>
+        <default class="collision">
+            <geom contype="1" conaffinity="1" group="1" />
+        </default>
+        <default class="visual">
+            <geom contype="0" conaffinity="0" group="2" />
+        </default>
+        <default class="revolute">
+            <joint armature="0.01" damping="5" frictionloss="0" limited="true"
+                type="hinge" />
+        </default>
+    </default>
+
+    <asset>
+        <mesh name="base_link"
+            file="../meshes/base_link.STL" />
+        <mesh name="link1"
+            file="../meshes/link1.STL" />
+        <mesh name="link2"
+            file="../meshes/link2.STL" />
+        <mesh name="link3"
+            file="../meshes/link3.STL" />
+        <mesh name="link4"
+            file="../meshes/link4.STL" />
+        <mesh name="link5"
+            file="../meshes/link5.STL" />
+        <mesh name="link6"
+            file="../meshes/link6.STL" />
+        <mesh name="gripper_base"
+            file="../meshes/gripper_base.STL" />
+        <mesh name="link7"
+            file="../meshes/link7.STL" />
+        <mesh name="link8"
+            file="../meshes/link8.STL" />
+    </asset>
+
+    <worldbody>
+        <body name="base_link">
+            <inertial pos="-0.00473641 2.56829e-05 0.0414515"
+                quat="0.0162816 0.803949 0.016795 0.594239"
+                mass="0.333893" diaginertia="0.000278792 0.000272007 0.00025271" />
+            <geom type="mesh" class="visual" rgba="0.792157 0.819608 0.933333 1" mesh="base_link" />
+            <geom name="collision_base_link" class="collision" type="box" pos="0 0 0.04"
+                size="0.05 0.05 0.045"
+                rgba="1 0 0 0.3" />
+            <body name="yaw_bracket" pos="0 0 0.123">
+                <inertial pos="0.000121505 0.000104632 -0.00438597"
+                    quat="0.486797 0.49897 -0.50059 0.513292" mass="0.215052"
+                    diaginertia="0.000116369 0.00010964 9.9555e-05" />
+                <joint name="joint_base_yaw" class="revolute" pos="0 0 0" axis="0 0 1"
+                    range="-2.618 2.168" />
+                <geom type="mesh" class="visual" rgba="0.792157 0.819608 0.933333 1" mesh="link1" />
+                <body name="upper_arm" quat="0.0356735 -0.0356786 -0.706207 -0.706205">
+                    <inertial pos="0.198666 -0.0109269 0.00142122"
+                        quat="0.0189031 0.705267 -0.0456298 0.707219" mass="0.463914"
+                        diaginertia="0.00104423 0.0010069 0.000207486" />
+                    <joint
+                        name="joint_base_pitch" class="revolute" pos="0 0 0" axis="0 0 1"
+                        range="0 3.14" />
+                    <geom type="mesh" class="visual"
+                        rgba="0.792157 0.819608 0.933333 1"
+                        mesh="link2" />
+                    <geom name="collision_upper_arm" class="collision" type="box"
+                        pos="0.12 -0.025 0"
+                        size="0.1 0.02 0.04" quat="0.0871557 0 0 0.9961947"
+                        rgba="1 0 0 0.3" />
+
+                    <!-- templated geom --> {% if mode == "mjx"%} <geom
+                        name="collision_base_pitch_motor" class="collision"
+                        type="capsule"
+                        pos="0 0 0"
+                        size="0.03 0.04"
+                        rgba="1 0 0 0.3"
+                        quat="0.0871557 0 0 0.9961947" /> {% else %}<geom
+                        name="collision_base_pitch_motor" class="collision"
+                        type="cylinder"
+                        pos="0 0 0"
+                        size="0.03 0.05"
+                        rgba="1 0 0 0.3"
+                    /> {% endif %} <!-- templated geom --> 
+                            
+                    <body
+                        name="lower_arm" pos="0.28503 0 0" quat="0.637536 0 0 -0.77042">
+                        <inertial pos="-0.0202738 -0.133915 -0.000458683"
+                            quat="0.528127 0.491307 -0.505056 0.473938" mass="0.219942"
+                            diaginertia="0.000201238 0.000190068 7.08709e-05" />
+                        <joint
+                            name="joint_elbow" class="revolute" pos="0 0 0" axis="0 0 1"
+                            range="-2.967 0" />
+                        <geom type="mesh" class="visual"
+                            rgba="0.792157 0.819608 0.933333 1"
+                            mesh="link3" />
+                        <geom name="collision_lower_arm" class="collision"
+                            type="box"
+                            pos="-0.025 -0.1 0"
+                            size="0.02 0.05 0.02"
+                            rgba="1 0 0 0.3" />
+
+
+                        <!-- templated geom --> {% if mode == "mjx"%} <geom
+                            name="collision_base_elbow_motor" class="collision"
+                            type="capsule"
+                            pos="0 0 0"
+                            size="0.03 0.04"
+                            rgba="1 0 0 0.3" />{% else %} <geom
+                            name="collision_base_elbow_motor" class="collision"
+                            type="cylinder"
+                            pos="0 0 0"
+                            size="0.03 0.05"
+                            rgba="1 0 0 0.3" /> {% endif %} <!-- templated geom -->
+
+                        <!-- templated geom --> {% if mode == "mjx"%} <geom
+                            name="collision_base_wrist_motor" class="collision"
+                            type="box"
+                            pos="-0.022 -0.185 0"
+                            quat="0.707105 0.707108 0 0"
+                            size="0.03 0.03 0.035" rgba="1 0 0 0.3" />{% else %} <geom
+                            name="collision_base_wrist_motor" class="collision"
+                            type="capsule"
+                            pos="-0.022 -0.185 0"
+                            quat="0.707105 0.707108 0 0"
+                            size="0.03 0.035" rgba="1 0 0 0.3" />{% endif %} <!-- templated geom -->
+
+                        <body
+                            name="wrist_bracket"
+                            pos="-0.021984 -0.25075 0"
+                            quat="0.707105 0.707108 0 0">
+                            <inertial pos="-9.66636e-05 0.000876064 -0.00496881"
+                                quat="0.512749 0.48584 0.481646 0.518714" mass="0.131814"
+                                diaginertia="5.1333e-05 4.14831e-05 3.96892e-05" />
+                            <joint
+                                name="joint_wrist_rotate" class="revolute" pos="0 0 0"
+                                axis="0 0 1"
+                                range="-1.745 1.745" />
+                            <geom type="mesh" class="visual"
+                                rgba="0.792157 0.819608 0.933333 1"
+                                mesh="link4" />
+
+
+                            <!-- templated geom --> {% if mode == "mjx"%} <geom
+                                name="collision_wrist_motor2" class="collision"
+                                type="capsule"
+                                quat="0.707105 0.707108 0 0"
+                                size="0.03 0.025" rgba="1 0 0 0.3" />{% else %}<geom
+                                name="collision_wrist_motor2" class="collision"
+                                type="cylinder"
+                                quat="0.707105 0.707108 0 0"
+                                size="0.03 0.03" rgba="1 0 0 0.3" />{% endif %} <!-- templated geom -->
+
+                            <body
+                                name="wrist_bracket2"
+                                quat="0.707105 -0.707108 0 0">
+                                <inertial pos="-4.10554e-05 -0.0566487 -0.00372058"
+                                    quat="0.492375 0.506639 0.49332 0.507463" mass="0.134101"
+                                    diaginertia="5.27778e-05 4.60364e-05 4.10994e-05" />
+                                <joint name="joint_wrist_bend" class="revolute" pos="0 0 0"
+                                    axis="0 0 1"
+                                    range="-1.22 1.22" />
+                                <geom type="mesh" class="visual" rgba="0.792157 0.819608 0.933333 1"
+                                    mesh="link5" />
+                                <body name="gripper_base0" pos="8.8259e-05 -0.091 0"
+                                    quat="0.707105 0.707108 0 0">
+                                    <inertial pos="-8.82591e-05 9.05984e-06 -0.002"
+                                        quat="0.5 0.5 -0.5 0.5"
+                                        mass="0.0069909"
+                                        diaginertia="1.06739e-06 5.43016e-07 5.43016e-07" />
+                                    <joint name="joint_wrist_rotate2" class="revolute" pos="0 0 0"
+                                        axis="0 0 1"
+                                        range="-2.0944 2.0944" />
+                                    <geom type="mesh" class="visual"
+                                        rgba="0.898039 0.917647 0.929412 1"
+                                        mesh="link6" />
+                                    <body name="gripper_base">
+                                        <inertial pos="-0.000183807 8.05033e-05 0.0321437"
+                                            quat="0.499416 0.498005 -0.501777 0.500794"
+                                            mass="0.145319"
+                                            diaginertia="0.000118692 0.00010174 4.16515e-05" />
+                                        <geom
+                                            type="mesh" class="visual"
+                                            rgba="0.792157 0.819608 0.933333 1"
+                                            mesh="gripper_base" />
+
+
+                                        <geom
+                                            name="collision_gripper_base2" class="collision"
+                                            type="box" pos="0 0 0.045"
+                                            size="0.02 0.08 0.02" rgba="1 0 0 0.3" />
+
+                                        <!-- templated geom --> {% if mode ==
+                    "mjx"%} <geom
+                                            name="collision_gripper_base" class="collision"
+                                            type="box"
+                                            quat="0.707105 0.707108 0 0"
+                                            size="0.03 0.05 0.03" rgba="1 0 0 0.3" />{% else %} <geom
+                                            name="collision_gripper_base" class="collision"
+                                            type="cylinder"
+                                            size="0.03 0.05" rgba="1 0 0 0.3" />{% endif %} <!--
+                                        templated geom -->
+
+
+                                        <body
+                                            name="gripper_right" pos="0 0 0.1358"
+                                            quat="0.707105 0.707108 0 0">
+                                            <inertial pos="0.000651232 -0.049193 0.00972259"
+                                                quat="0.519774 0.479905 -0.436488 0.555881"
+                                                mass="0.0303535"
+                                                diaginertia="1.60353e-05 1.14217e-05 5.97329e-06" />
+                                            <joint name="joint_gripper_right" class="gripper"
+                                                pos="0 0 0"
+                                                axis="0 0 1"
+                                                type="slide" range="0 0.035" />
+                                            <geom type="mesh" class="visual"
+                                                rgba="0.792157 0.819608 0.933333 1"
+                                                mesh="link7" />
+                                            <geom name="collision_gripper_right" class="collision"
+                                                type="box" pos="0 -0.032 0.01"
+                                                size="0.01 0.034 0.01" rgba="1 0 0 0.3" />
+                                        </body>
+                                        <body
+                                            name="gripper_left" pos="0 0 0.1358"
+                                            quat="-2.59734e-06 -2.59735e-06 -0.707108 -0.707105">
+                                            <inertial pos="0.000651232 -0.049193 0.00972259"
+                                                quat="0.519774 0.479905 -0.436488 0.555881"
+                                                mass="0.0303535"
+                                                diaginertia="1.60353e-05 1.14217e-05 5.97329e-06" />
+                                            <joint name="joint_gripper_left" class="gripper"
+                                                pos="0 0 0"
+                                                axis="0 0 -1"
+                                                type="slide" range="-0.035 0" />
+                                            <geom type="mesh" class="visual"
+                                                rgba="0.792157 0.819608 0.933333 1"
+                                                mesh="link8" />
+                                            <geom name="collision_gripper_left" class="collision"
+                                                type="box" pos="0 -0.032 0.01"
+                                                size="0.01 0.034 0.01" rgba="1 0 0 0.3" />
+                                        </body>
+                                    </body>
+                                </body>
+                            </body>
+                        </body>
+                    </body>
+                </body>
+            </body>
+        </body>
+    </worldbody>
+
+    <equality>
+        <joint joint1="joint_gripper_left" joint2="joint_gripper_right" solimp="0.95 0.99 0.001"
+            solref="0.005 1" polycoef="0 -1 0 0 0" />
+    </equality>
+
+    <actuator>
+        <position name="actuator_base_yaw" joint="joint_base_yaw" kp="1000" ctrlrange="-2.618 2.168" />
+        <position name="actuator_base_pitch" joint="joint_base_pitch" kp="100" ctrlrange="0 3.14" />
+        <position name="actuator_elbow" joint="joint_elbow" kp="100" ctrlrange="-2.967 0" />
+        <position name="actuator_wrist_rotate" joint="joint_wrist_rotate" kp="100"
+            ctrlrange="-1.745 1.745" />
+        <position name="actuator_wrist_bend" joint="joint_wrist_bend" kp="100"
+            ctrlrange="-1.22 1.22" />
+        <position name="actuator_wrist_rotate2" joint="joint_wrist_rotate2" kp="100"
+            ctrlrange="-2.0944 2.0944" />
+        <position name="actuator_gripper_left" joint="joint_gripper_left" kp="300"
+            forcerange="-200 200" ctrlrange="-0.035 0" />
+    </actuator>
+</mujoco>
