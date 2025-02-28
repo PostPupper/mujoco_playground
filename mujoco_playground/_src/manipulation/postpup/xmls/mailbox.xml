@@ -3,7 +3,8 @@
 
     <default>
         <default class="mailbox_hinge">
-            <joint armature="0.000001" damping="0.01" frictionloss="0.01" limited="true"
+            <joint armature="0.000001" damping="0.01" frictionloss="0.01"
+                limited="true"
                 pos="0 0 0"
                 range="-3.14 0" type="hinge" solimplimit="0.99 0.999 0.001" />
         </default>
@@ -21,7 +22,7 @@
             <body name="mailbox_front" pos="0 0.26 0.0443099" quat="0.707107 0 0.707107 0"
                 gravcomp="0">
                 <inertial pos="-0.12 0 0" mass="0.1" diaginertia="0.00161 0.00161 0.00161" />
-                <joint class="mailbox_hinge" />
+                <joint name="mailbox_hinge" class="mailbox_hinge" />
                 <geom size="0.11 0.005 0.09" pos="-0.11 0 0" type="box" class="mailbox_collision" />
                 <geom
                     size="0.015 0.0015 0.015" pos="-0.22 0.015 0" quat="0.707107 0 0 0.707107"

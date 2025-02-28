@@ -1,4 +1,10 @@
-from mujoco_playground._src.manipulation.postpup import base
+from mujoco_playground._src.manipulation.postpup import (
+    base,
+    model_utils,
+    constants,
+)
+import mujoco.viewer as viewer
+
 from ml_collections import config_dict
 from typing import Any, Dict, Optional, Union
 
@@ -33,5 +39,9 @@ class PlaceLetter(base.PostPupBase):
         config: config_dict.ConfigDict = default_config(),
         config_overrides: Optional[Dict[str, Union[str, int, list[Any]]]] = None,
     ):
-        xml_path = base.AGILEX_PIPER_URDF / "piper.xml"
+        xml_path = constants.PLACE_LETTER_SCENE_XML
         super().__init__(xml_path, config)
+
+
+if __name__ == "__main__":
+    model_utils.visualize_model(constants.PLACE_LETTER_SCENE_XML)

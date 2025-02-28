@@ -1,8 +1,20 @@
 
 # PostPup
 
-This fork can only be used as a submodule of the monorepo because we hard-code links to the agilex-piper MJCF xml model file which is in the monorepo.
+## Installation
+```sh
+conda create -n postpup python==3.12
+conda activate postpup
+pip install typeguard
+pip install -e .
+```
 
+## Use
+
+Try the interactive viewer
+```sh
+python3 mujoco_playground/_src/manipulation/postpup/place_letter.py
+```
 
 
 # MuJoCo Playground

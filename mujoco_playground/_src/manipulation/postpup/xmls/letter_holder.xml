@@ -1,11 +1,13 @@
 <mujoco model="robot">
-  <compiler angle="radian" autolimits="true"/>
-  <default/>
+  <compiler angle="radian" autolimits="true" />
+  <default />
   <worldbody>
-    <geom size="0.1 0.025 0.0025" type="box"/>
-    <geom size="0.1 0.0025 0.08" pos="0 -0.025 0.08" type="box"/>
-    <geom size="0.1 0.0025 0.08" pos="0 0.025 0.08" type="box"/>
-    <geom size="0.0025 0.025 0.08" pos="0.1 0 0.08" type="box"/>
-    <geom size="0.0025 0.025 0.08" pos="-0.1 0 0.08" type="box"/>
+    <body name="letter_holder" pos="0.0 0.3 00">
+      <geom size="0.1 0.025 0.0025" type="box" />
+      <geom size="0.1 0.0025 0.08" pos="0 -0.025 0.08" type="box" />
+      <geom size="0.1 0.0025 0.08" pos="0 0.025 0.08" type="box" />
+      <geom size="0.0025 0.025 0.08" pos="0.1 0 0.08" type="box" />
+      <geom size="0.0025 0.025 0.08" pos="-0.1 0 0.08" type="box" />
+    </body>
   </worldbody>
 </mujoco>

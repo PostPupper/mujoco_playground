@@ -24,7 +24,7 @@ from mujoco import mjx
 import numpy as np
 import jinja2
 from mujoco_playground._src import mjx_env
-from mujoco_playground._src.manipulation.postpup import piper_model_utils
+from mujoco_playground._src.manipulation.postpup import model_utils, constants
 
 
 _ARM_JOINTS = [
@@ -37,21 +37,6 @@ _ARM_JOINTS = [
 ]
 _FINGER_JOINTS = ["joint_gripper_left", "joint_gripper_right"]
 _ALL_JOINTS = _ARM_JOINTS + _FINGER_JOINTS
-
-MONOREPO_ROOT = epath.Path(__file__).parents[6]
-AGILEX_PIPER = MONOREPO_ROOT / "agilex-piper/"
-AGILEX_PIPER_MESHES = AGILEX_PIPER / "meshes"
-AGILEX_PIPER_URDF = AGILEX_PIPER / "urdf"
-
-
-def get_assets() -> Dict[str, bytes]:
-    assets = {}
-    print(f"agilex_piper: {AGILEX_PIPER}")
-    print(f"agilex_piper_meshes: {AGILEX_PIPER_MESHES}")
-    print(f"agilex_piper_urdf: {AGILEX_PIPER_URDF}")
-    mjx_env.update_assets(assets, AGILEX_PIPER_URDF, "*.xml")
-    mjx_env.update_assets(assets, AGILEX_PIPER_MESHES)
-    return assets
 
 
 def default_config() -> config_dict.ConfigDict:
@@ -69,24 +54,20 @@ class PostPupBase(mjx_env.MjxEnv):
 
     def __init__(
         self,
-        xml_template_path: epath.Path,
+        xml_path: epath.Path,
         config: config_dict.ConfigDict,
         config_overrides: Optional[Dict[str, Union[str, int, list[Any]]]] = None,
     ):
         super().__init__(config, config_overrides)
 
-        # render template using MJX compatiblity
-        self._xml_path = AGILEX_PIPER_URDF / "piper_rendered_mjx.xml"
-        xml = piper_model_utils.create_model_xml(
-            template_xml=xml_template_path, output_xml=self._xml_path, mode="mjx"
-        )
-        _ = piper_model_utils.create_model_xml(
-            template_xml=xml_template_path,
-            output_xml=AGILEX_PIPER_URDF / "piper_rendered_normal.xml",
-            mode="normal",
-        )
+        # Create all variations of the model xmls
+        model_utils.create_all_model_variations()
 
-        mj_model = mujoco.MjModel.from_xml_string(xml, assets=get_assets())
+        xml = epath.Path(xml_path).read_text()
+        mj_model = mujoco.MjModel.from_xml_string(
+            xml,
+            assets=model_utils.get_assets(),
+        )
         mj_model.opt.timestep = self.sim_dt
 
         self._mj_model = mj_model
@@ -161,4 +142,6 @@ if __name__ == "__main__":
         def reset(self, *args, **kwargs):
             pass
 
-    TestConcrete(AGILEX_PIPER_URDF / "piper_template.xml", default_config())
+    TestConcrete(constants.PIPER_RENDERED_MJX_XML, default_config())
+
+    model_utils.visualize_model(constants.PIPER_RENDERED_MJX_XML)
