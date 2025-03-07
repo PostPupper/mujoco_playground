@@ -37,7 +37,12 @@
         <body name="letter" pos="0.0 0.3 0.13">
             <inertial pos="0 0 0" mass="0.01" diaginertia="0.000057 0.000057 0.000009" />
             <freejoint />
-            <geom size="0.05 0.001 0.12" type="box" rgba="0.95 0.95 0.95 1" />
+            <geom size="0.05 0.001 0.12" type="box" rgba="0.95 0.95 0.95 1"
+                solimp="0.99 0.999 0.0001" />
+        </body>
+        <body name="target" pos="0.16866421 0.0958612 0.37914733">
+            <geom type="box" size="0.02 0.02 0.02" rgba="0.95 0.95 0.95 1" contype="0"
+                conaffinity="0" />
         </body>
     </worldbody>
 </mujoco>
