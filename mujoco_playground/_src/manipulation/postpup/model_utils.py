@@ -3,7 +3,7 @@ from etils import epath
 from mujoco_playground._src.manipulation.postpup import constants
 import mujoco
 from mujoco import viewer
-from typing import Dict
+from typing import Callable, Dict, Optional
 
 from mujoco_playground._src import mjx_env
 
@@ -47,8 +47,9 @@ def create_all_model_variations():
         create_model_xml(constants.PIPER_TEMPLATE_XML, XML_PATHS[mode], mode)
 
 
-def load_callback(xml_path: epath.Path, model=None, data=None):
-    mujoco.set_mjcb_control(None)
+def load_callback(
+    xml_path: epath.Path, model=None, data=None, control_fn: Optional[Callable] = None
+):
 
     create_all_model_variations()
 
@@ -65,8 +66,11 @@ def load_callback(xml_path: epath.Path, model=None, data=None):
     n_substeps = int(round(ctrl_dt / sim_dt))
     model.opt.timestep = sim_dt
 
+    if control_fn is not None:
+        mujoco.set_mjcb_control(control_fn)
+
     return model, data
 
 
-def visualize_model(xml_path: epath.Path):
-    viewer.launch(loader=lambda: load_callback(xml_path))
+def visualize_model(xml_path: epath.Path, control_fn: Optional[Callable] = None):
+    viewer.launch(loader=lambda: load_callback(xml_path, control_fn=control_fn))
