@@ -20,12 +20,16 @@ class GeneratedDataset(torch.utils.data.Dataset):
             xml_path=constants.PIPER_RENDERED_NORMAL_XML
         )
 
+        self.lowers = self.model.jnt_range[:, 0]
+        self.uppers = self.model.jnt_range[:, 1]
+
     def __len__(self):
         return self.num_samples
 
     def generate_data(self, arm_dofs: int = 6):
-        # Generate random joint angles.
-        joint_angles = np.random.rand(self.model.nq)
+        # Generate random joint angles given joint limits
+        joint_angles = np.random.uniform(self.lowers, self.uppers)
+
         # Compute forward kinematics for the "gripper_site_x_forward" site.
         pos_quat = data_generation.generate_fk(
             self.model, self.data, joint_angles, "gripper_site_x_forward"
@@ -33,16 +37,24 @@ class GeneratedDataset(torch.utils.data.Dataset):
         return pos_quat, joint_angles[:arm_dofs]
 
     def __getitem__(self, idx):
-        inp, lbl = self.generate_data()
+        ee_pos_quat, arm_joint_angles = self.generate_data()
         # Convert to torch tensors.
-        inp = torch.tensor(inp, dtype=torch.float32)
-        lbl = torch.tensor(lbl, dtype=torch.float32)
-        return inp, lbl
+        ee_pos_quat = torch.tensor(ee_pos_quat, dtype=torch.float32)
+        arm_joint_angles = torch.tensor(arm_joint_angles, dtype=torch.float32)
+        return ee_pos_quat, arm_joint_angles
 
 
 class RegressionMLP(L.LightningModule):
     def __init__(
-        self, hidden_sizes=[32, 32], batch_size=32, learning_rate=1e-3, t_max=50
+        self,
+        hidden_sizes: list[int] = [1024, 1024, 1024],
+        batch_size: int = 1024,
+        learning_rate: float = 1e-3,
+        t_max: int = 500,
+        input_size: int = 7,
+        output_size: int = 6,
+        num_workers: int = 12,
+        epoch_size: int = 1000000,
     ):
         """
         Args:
@@ -50,26 +62,29 @@ class RegressionMLP(L.LightningModule):
             batch_size (int): Batch size for the dataloader.
             learning_rate (float): Learning rate for the optimizer.
             t_max (int): Maximum number of iterations for the CosineAnnealingLR scheduler.
+            input_size (int): Number of input features.
+            output_size (int): Number of output features.
         """
         super().__init__()
+        self.save_hyperparameters()
         self.batch_size = batch_size
         self.learning_rate = learning_rate
 
         # Build a configurable MLP.
         layers = []
-        input_size = 7  # Input vector size.
+
         for hidden in hidden_sizes:
             layers.append(nn.Linear(input_size, hidden))
-            layers.append(nn.ELU())
+            layers.append(nn.ELU())  # type: ignore
             input_size = hidden
-        layers.append(
-            nn.Linear(input_size, 6)
-        )  # Output layer (6-element regression output)
+        layers.append(nn.Linear(input_size, output_size))
         self.model = nn.Sequential(*layers)
 
         # Use Mean Squared Error for regression.
         self.criterion = nn.MSELoss()
         self.t_max = t_max
+        self.num_workers = num_workers
+        self.epoch_size = epoch_size
 
     def forward(self, x):
         return self.model(x)
@@ -96,9 +111,12 @@ class RegressionMLP(L.LightningModule):
         }
 
     def train_dataloader(self):
-        dataset = GeneratedDataset(num_samples=1000000)
+        dataset = GeneratedDataset(num_samples=self.epoch_size)
         return torch.utils.data.DataLoader(
-            dataset, batch_size=self.batch_size, shuffle=True, num_workers=12
+            dataset,
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
         )
 
 
@@ -108,11 +126,15 @@ if __name__ == "__main__":
         "batch_size": 1024,
         "learning_rate": 1e-3,
         "t_max": 500,
+        "input_size": 7,
+        "output_size": 6,
+        "num_workers": 12,
+        "epoch_size": 1000000,
     }
     # Initialize wandb logger (log_model=True ensures that model checkpoints are uploaded to wandb cloud).
     wandb_logger = WandbLogger(
         project="regression_mlp_project",
-        log_model=True,
+        log_model="True",
     )
     wandb_logger.experiment.config.update(config)
 
@@ -136,6 +158,10 @@ if __name__ == "__main__":
         batch_size=config["batch_size"],
         learning_rate=config["learning_rate"],
         t_max=config["t_max"],
+        input_size=config["input_size"],
+        output_size=config["output_size"],
+        num_workers=config["num_workers"],
+        epoch_size=config["epoch_size"],
     )
 
     # Create the trainer with wandb logging and callbacks.
