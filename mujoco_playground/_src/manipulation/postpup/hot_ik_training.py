@@ -125,16 +125,18 @@ if __name__ == "__main__":
         "hidden_sizes": [1024, 1024, 1024],
         "batch_size": 1024,
         "learning_rate": 1e-3,
-        "t_max": 500,
+        "t_max": 10000,
         "input_size": 7,
         "output_size": 6,
         "num_workers": 12,
         "epoch_size": 1000000,
+        "ckpt_path": None,
+        # "ckpt_path": "./checkpoints/regression-mlp-epoch=999-train_loss=0.2214.ckpt",
     }
     # Initialize wandb logger (log_model=True ensures that model checkpoints are uploaded to wandb cloud).
     wandb_logger = WandbLogger(
         project="regression_mlp_project",
-        log_model="True",
+        log_model=True,
     )
     wandb_logger.experiment.config.update(config)
 
@@ -147,6 +149,7 @@ if __name__ == "__main__":
         verbose=True,
         dirpath="./checkpoints",  # Local directory for temporary checkpoint storage.
         save_weights_only=False,  # Save the full model.
+        save_last=True,  # Save the last checkpoint.
     )
 
     # Log learning rate changes.
@@ -169,8 +172,9 @@ if __name__ == "__main__":
         max_epochs=config["t_max"],
         logger=wandb_logger,
         callbacks=[checkpoint_callback, lr_monitor],
+        # precision="16-mixed"
         # profiler="simple",
     )
 
     # Start training.
-    trainer.fit(model_instance)
+    trainer.fit(model_instance, ckpt_path=config["ckpt_path"])
