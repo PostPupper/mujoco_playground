@@ -47,32 +47,53 @@ class Piper3DOFIK:
 
         self.site_id = self.mj_model.site(self.site_name).id
 
-    def __call__(self, ee_pos_quat: np.ndarray, tolerance=1e-4, max_iters=100):
+    def __call__(
+        self,
+        ee_pos_quat: np.ndarray,
+        tolerance=1e-4,
+        max_iters=100,
+        method: str = "newton",
+        verbose: bool = False,
+    ):
         # non-singularity starting position
-        joint_angles = np.array([0.0, 0.5, -0.9, -0.2, 0.4, 0, 0, 0])
+        initial_angles = np.array([0.0, 0.5, -0.9, -0.2, 0.4, 0, 0, 0])
 
-        for i in range(max_iters):
-            self.mj_data.qpos[:] = joint_angles
-            mujoco.mj_kinematics(self.mj_model, self.mj_data)
-            mujoco.mj_comPos(self.mj_model, self.mj_data)
-            mujoco.mj_jacSite(
-                self.mj_model, self.mj_data, self.jacp, self.jacr, self.site_id
-            )
+        for attempts in range(5):
+            joint_angles = initial_angles.copy()
+            for i in range(max_iters):
+                self.mj_data.qpos[:] = joint_angles
+                mujoco.mj_kinematics(self.mj_model, self.mj_data)
+                mujoco.mj_comPos(self.mj_model, self.mj_data)
+                mujoco.mj_jacSite(
+                    self.mj_model, self.mj_data, self.jacp, self.jacr, self.site_id
+                )
 
-            error = self.mj_data.site(self.site_name).xpos - ee_pos_quat[:3]
-            # print(
-            #     f"{i=} error: {error[0]:.3f} {error[1]:.3f} {error[2]:.3f}"
-            #     + f"q[:3]: {joint_angles[0]:0.2f} {joint_angles[1]:0.2f} {joint_angles[2]:0.2f}"
-            # )
-            if np.linalg.norm(error) < tolerance:
-                break
-            J = self.jacp[:, :3]
-            # gradient descent
-            joint_angles[: self.dofs] -= 10 * J.T @ error
+                error = self.mj_data.site(self.site_name).xpos - ee_pos_quat[:3]
 
-            # approx newton method
-            # joint_angles[: self.dofs] -= 0.8 * np.linalg.pinv(J) @ error
+                if verbose:
+                    print(
+                        f"{i=} norm: {np.linalg.norm(error)} error: {error[0]:.3f} {error[1]:.3f} {error[2]:.3f} "
+                        + f"q[:3]: {joint_angles[0]:0.2f} {joint_angles[1]:0.2f} {joint_angles[2]:0.2f}"
+                    )
 
+                # Check if converged
+                if np.linalg.norm(error) < tolerance:
+                    return joint_angles[: self.dofs]
+
+                # Update joint angles
+                J = self.jacp[:, :3]
+
+                # gradient descent
+                if method == "gradient_descent":
+                    joint_angles[: self.dofs] -= 20.0 * J.T @ error
+                elif method == "newton":
+                    joint_angles[: self.dofs] -= 0.8 * np.linalg.pinv(J) @ error
+                else:
+                    raise ValueError(f"Unknown method: {method}")
+
+            initial_angles = np.random.uniform(self.fk.lowers, self.fk.uppers)
+
+        print(f"IK FAILED: Did not converge after {max_iters} iterations with 5 seeds")
         return joint_angles[: self.dofs]
 
 
