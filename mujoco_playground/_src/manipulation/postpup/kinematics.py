@@ -1,3 +1,4 @@
+from typing import Optional
 import mujoco
 from mujoco_playground._src.manipulation.postpup.hot_ik_training import RegressionMLP
 from mujoco_playground._src.manipulation.postpup import (
@@ -47,21 +48,26 @@ class Piper3DOFIK:
 
         self.site_id = self.mj_model.site(self.site_name).id
 
+    def normalize_angles(self, joint_angles: np.ndarray):
+        # normalize angles between -pi and pi
+        return np.arctan2(np.sin(joint_angles), np.cos(joint_angles))
+
     def __call__(
         self,
         ee_pos_quat: np.ndarray,
         tolerance=1e-4,
         max_iters=100,
+        max_seeds=10,
         method: str = "newton",
         verbose: bool = False,
-    ):
+    ) -> Optional[np.ndarray]:
         # non-singularity starting position
-        initial_angles = np.array([0.0, 0.5, -0.9, -0.2, 0.4, 0, 0, 0])
+        initial_angles = np.array([0.0, 0.5, -0.9])
 
-        for attempts in range(5):
+        for attempts in range(max_seeds):
             joint_angles = initial_angles.copy()
             for i in range(max_iters):
-                self.mj_data.qpos[:] = joint_angles
+                self.mj_data.qpos[: self.dofs] = joint_angles
                 mujoco.mj_kinematics(self.mj_model, self.mj_data)
                 mujoco.mj_comPos(self.mj_model, self.mj_data)
                 mujoco.mj_jacSite(
@@ -78,23 +84,37 @@ class Piper3DOFIK:
 
                 # Check if converged
                 if np.linalg.norm(error) < tolerance:
-                    return joint_angles[: self.dofs]
+                    joint_angles = self.normalize_angles(joint_angles)
+                    if (joint_angles < self.fk.lowers[: self.dofs] - 1e-3).any() or (
+                        joint_angles > self.fk.uppers[: self.dofs] + 1e-3
+                    ).any():
+                        print(
+                            f"Joint angles out of bounds!!! q={joint_angles=} lowers={self.fk.lowers[:self.dofs]=} uppers={self.fk.uppers[self.dofs]=}"
+                        )
+                        return None
+                    return joint_angles
 
                 # Update joint angles
                 J = self.jacp[:, :3]
 
                 # gradient descent
                 if method == "gradient_descent":
-                    joint_angles[: self.dofs] -= 20.0 * J.T @ error
+                    joint_angles -= 20.0 * J.T @ error
+
                 elif method == "newton":
-                    joint_angles[: self.dofs] -= 0.8 * np.linalg.pinv(J) @ error
+                    joint_angles -= 1.0 * np.linalg.pinv(J) @ error
+
                 else:
                     raise ValueError(f"Unknown method: {method}")
 
-            initial_angles = np.random.uniform(self.fk.lowers, self.fk.uppers)
+            initial_angles = np.random.uniform(self.fk.lowers, self.fk.uppers)[
+                : self.dofs
+            ]
 
-        print(f"IK FAILED: Did not converge after {max_iters} iterations with 5 seeds")
-        return joint_angles[: self.dofs]
+        print(
+            f"IK FAILED: Did not converge after {max_iters} iterations with {max_seeds} seeds"
+        )
+        return None
 
 
 def small_angle_matrix_log(R_rel):
