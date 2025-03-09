@@ -43,5 +43,10 @@ class PlaceLetter(base.PostPupBase):
         super().__init__(xml_path, config)
 
 
+def control_fn(model, data):
+    print(data.site("gripper_site_x_forward").xpos)
+    print(data.site("gripper_site_x_forward").xmat)
+
+
 if __name__ == "__main__":
-    model_utils.visualize_model(constants.PLACE_LETTER_SCENE_XML)
+    model_utils.visualize_model(constants.PLACE_LETTER_SCENE_XML, control_fn=control_fn)

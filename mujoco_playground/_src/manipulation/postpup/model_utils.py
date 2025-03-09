@@ -48,7 +48,11 @@ def create_all_model_variations():
 
 
 def load_callback(
-    xml_path: epath.Path, model=None, data=None, control_fn: Optional[Callable] = None
+    xml_path: epath.Path,
+    model=None,
+    data=None,
+    control_fn: Optional[Callable] = None,
+    dt: float = 0.002,
 ):
 
     create_all_model_variations()
@@ -61,14 +65,13 @@ def load_callback(
 
     mujoco.mj_resetDataKeyframe(model, data, 0)
 
-    ctrl_dt = 0.02
-    sim_dt = 0.004
-    n_substeps = int(round(ctrl_dt / sim_dt))
-    model.opt.timestep = sim_dt
+    model.opt.timestep = dt
 
     if control_fn is not None:
         mujoco.set_mjcb_control(control_fn)
-
+    print("LOAD CALLBACK")
+    print("model: ", model)
+    print("data: ", data)
     return model, data
 
 

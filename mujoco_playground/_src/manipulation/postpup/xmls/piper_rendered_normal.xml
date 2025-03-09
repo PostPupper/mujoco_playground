@@ -126,6 +126,12 @@
                                 rgba="0.792157 0.819608 0.933333 1"
                                 mesh="link4" />
 
+                            <site
+                                name="wrist_base_site" pos="0 0 0"
+                                size="0.01"
+                                euler="0 -1.57079632679  0"
+                                rgba="0.3 0.3 1.0 1" group="0" />
+
 
                             <!-- templated geom --> <geom
                                 name="collision_wrist_motor2" class="collision"
@@ -240,7 +246,8 @@
     </equality>
 
     <actuator>
-        <!-- <position name="actuator_base_yaw" joint="joint_base_yaw" kp="1000" ctrlrange="-2.618
+        <position name="actuator_base_yaw" joint="joint_base_yaw" kp="1000"
+            ctrlrange="-2.618
         2.168" />
         <position name="actuator_base_pitch" joint="joint_base_pitch" kp="100" ctrlrange="0 3.14" />
         <position name="actuator_elbow" joint="joint_elbow" kp="100" ctrlrange="-2.967 0" />
@@ -251,8 +258,9 @@
         <position name="actuator_wrist_rotate2" joint="joint_wrist_rotate2" kp="100"
             ctrlrange="-2.0944 2.0944" />
         <position name="actuator_gripper_left" joint="joint_gripper_left" kp="300"
-            forcerange="-200 200" ctrlrange="-0.035 0" /> -->
-        <velocity name="actuator_base_yaw" joint="joint_base_yaw" kv="10" forcerange="-100 100" />
+            forcerange="-200 200" ctrlrange="-0.035 0" />
+        <!-- <velocity name="actuator_base_yaw" joint="joint_base_yaw" kv="10" forcerange="-100 100"
+        />
         <velocity name="actuator_base_pitch" joint="joint_base_pitch" kv="10" forcerange="-100 100" />
         <velocity name="actuator_elbow" joint="joint_elbow" kv="10" forcerange="-100 100" />
         <velocity name="actuator_wrist_rotate" joint="joint_wrist_rotate" kv="10" />
@@ -260,6 +268,6 @@
         <velocity name="actuator_wrist_rotate2" joint="joint_wrist_rotate2" kv="10"
             forcerange="-100 100" />
         <velocity name="actuator_gripper_left" joint="joint_gripper_left" kv="10"
-            forcerange="-200 200" />
+            forcerange="-200 200" /> -->
     </actuator>
 </mujoco>

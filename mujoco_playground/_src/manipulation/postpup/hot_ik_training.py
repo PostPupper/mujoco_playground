@@ -130,8 +130,9 @@ if __name__ == "__main__":
         "output_size": 6,
         "num_workers": 12,
         "epoch_size": 1000000,
-        "ckpt_path": None,
+        # "ckpt_path": None,
         # "ckpt_path": "./checkpoints/regression-mlp-epoch=999-train_loss=0.2214.ckpt",
+        "ckpt_path": "./checkpoints/regression-mlp-epoch=1114-train_loss=0.2335.ckpt",
     }
     # Initialize wandb logger (log_model=True ensures that model checkpoints are uploaded to wandb cloud).
     wandb_logger = WandbLogger(
