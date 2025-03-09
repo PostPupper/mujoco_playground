@@ -60,9 +60,13 @@ class Piper3DOFIK:
         max_seeds=10,
         method: str = "newton",
         verbose: bool = False,
+        initial_guess: Optional[np.ndarray] = None,
     ) -> Optional[np.ndarray]:
         # non-singularity starting position
-        initial_angles = np.array([0.0, 0.5, -0.9])
+        if initial_guess is None:
+            initial_angles = np.array([0.0, 0.5, -0.9])
+        else:
+            initial_angles = initial_guess.copy()
 
         for attempts in range(max_seeds):
             joint_angles = initial_angles.copy()
@@ -89,7 +93,7 @@ class Piper3DOFIK:
                         joint_angles > self.fk.uppers[: self.dofs] + 1e-3
                     ).any():
                         print(
-                            f"Joint angles out of bounds!!! q={joint_angles=} lowers={self.fk.lowers[:self.dofs]=} uppers={self.fk.uppers[self.dofs]=}"
+                            f"Joint angles out of bounds!!! q={joint_angles=} lowers={self.fk.lowers[:self.dofs]=} uppers={self.fk.uppers[:self.dofs]=}"
                         )
                         return None
                     return joint_angles
