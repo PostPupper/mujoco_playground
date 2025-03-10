@@ -35,16 +35,87 @@ class PiperLearnedIK:
         return self.pad(self.model(input).detach().numpy())
 
 
-class Piper3DOFIK:
-    def __init__(self, model_xml: epath.Path, site_name: str = "wrist_base_site"):
+class PiperDifferentialIK:
+    def __init__(
+        self,
+        model_xml: epath.Path,
+        site_name: str,
+        mode: str = "full",
+    ):
         self.site_name = site_name
         self.fk = PiperFK(model_xml=model_xml, site_name=self.site_name)
         self.mj_model = self.fk.mj_model
         self.mj_data = self.fk.mj_data
 
-        self.jacp = np.zeros((3, self.mj_model.nv))
-        self.jacr = np.zeros((3, self.mj_model.nv))
-        self.dofs = 3
+        self.site_id = self.mj_model.site(self.site_name).id
+
+        self.mode = mode
+        assert self.mode in ["full", "position_only", "orientation_only"]
+
+        self.arm_dofs = 6
+        self.base_arm_dofs = 3
+
+    def __call__(
+        self,
+        joint_angles: np.ndarray,
+        desired_ee_velocity: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Compute the joint velocities that will move the end effector with the desired velocity.
+        Args:
+            joint_angles (np.ndarray): Joint angles.
+            desired_ee_velocity (np.ndarray): Desired end effector velocity (linear and angular).
+        Returns:
+            np.ndarray: Joint velocities of size 6
+        """
+        assert joint_angles.size == self.mj_model.nq
+        assert desired_ee_velocity.size == 6
+
+        self.mj_data.qpos[:] = joint_angles
+        mujoco.mj_kinematics(self.mj_model, self.mj_data)
+        mujoco.mj_comPos(self.mj_model, self.mj_data)
+        jacp = np.zeros((3, self.mj_model.nv))
+        jacr = np.zeros((3, self.mj_model.nv))
+        mujoco.mj_jacSite(self.mj_model, self.mj_data, jacp, jacr, self.site_id)
+        # breakpoint()
+
+        if self.mode == "full":
+            Jp = jacp[:, : self.arm_dofs].copy()
+            Jr = jacr[:, : self.arm_dofs].copy()
+            J = np.vstack((Jp, Jr))  # 6x6
+            return np.linalg.pinv(J) @ desired_ee_velocity
+        elif self.mode == "orientation_only":
+            J = jacr[:, : self.arm_dofs].copy()  # 3x6
+            return np.linalg.pinv(J) @ desired_ee_velocity[3:]
+        elif self.mode == "position_only":
+            J = jacp[:, : self.base_arm_dofs].copy()  # 3x3
+            return np.concatenate((np.linalg.pinv(J) @ desired_ee_velocity[:3], np.zeros(3)))
+        else:
+            raise NotImplementedError
+
+
+class Piper3DOFIK:
+    def __init__(
+        self,
+        model_xml: epath.Path,
+        dofs: int,
+        site_name: str = "wrist_base_site",
+        orientation_weight=1.0,
+        mode: str = "full",
+    ):
+        self.site_name = site_name
+        self.fk = PiperFK(model_xml=model_xml, site_name=self.site_name)
+        self.mj_model = self.fk.mj_model
+        self.mj_data = self.fk.mj_data
+
+        self.dofs = dofs
+        assert self.dofs == 3 or self.dofs == 6
+
+        # error = pos_error + orientation_weight * orientation_error
+        self.orientation_weight = orientation_weight
+
+        self.mode = mode
+        assert self.mode in ["full", "position_only", "orientation_only"]
 
         self.site_id = self.mj_model.site(self.site_name).id
 
@@ -61,10 +132,11 @@ class Piper3DOFIK:
         method: str = "newton",
         verbose: bool = False,
         initial_guess: Optional[np.ndarray] = None,
+        gradient_descent_step_size=20.0,
     ) -> Optional[np.ndarray]:
         # non-singularity starting position
         if initial_guess is None:
-            initial_angles = np.array([0.0, 0.5, -0.9])
+            initial_angles = np.array([0.0, 0.5, -0.9, -0.2, 0.4, 0, 0, 0])[: self.dofs]
         else:
             initial_angles = initial_guess.copy()
 
@@ -74,17 +146,52 @@ class Piper3DOFIK:
                 self.mj_data.qpos[: self.dofs] = joint_angles
                 mujoco.mj_kinematics(self.mj_model, self.mj_data)
                 mujoco.mj_comPos(self.mj_model, self.mj_data)
-                mujoco.mj_jacSite(
-                    self.mj_model, self.mj_data, self.jacp, self.jacr, self.site_id
-                )
+                jacp = np.zeros((3, self.mj_model.nv))
+                jacr = np.zeros((3, self.mj_model.nv))
+                mujoco.mj_jacSite(self.mj_model, self.mj_data, jacp, jacr, self.site_id)
 
-                error = self.mj_data.site(self.site_name).xpos - ee_pos_quat[:3]
+                site = self.mj_data.site(self.site_name)
+                pos_error = site.xpos - ee_pos_quat[:3]
+
+                R_world_from_site = site.xmat.copy().reshape((3, 3))
+                R_world_from_goal = np.zeros(9)
+                mujoco.mju_quat2Mat(R_world_from_goal, ee_pos_quat[3:])
+                R_world_from_goal = R_world_from_goal.reshape((3, 3))
+                R_site_from_goal = R_world_from_site.T @ R_world_from_goal
+                w_site_from_goal = rotation_matrix_to_angle_axis(R_site_from_goal)
+                w_goal_from_site = -w_site_from_goal
+
+                if self.dofs == 3:
+                    error = pos_error.copy()
+                elif self.dofs == 6:
+                    if self.mode == "full":
+                        error = np.concatenate(
+                            (
+                                pos_error.copy(),
+                                self.orientation_weight * w_goal_from_site.copy(),
+                            )
+                        )
+                    elif self.mode == "orientation_only":
+                        error = w_goal_from_site
+                    else:
+                        raise NotImplementedError()
 
                 if verbose:
-                    print(
-                        f"{i=} norm: {np.linalg.norm(error)} error: {error[0]:.3f} {error[1]:.3f} {error[2]:.3f} "
-                        + f"q[:3]: {joint_angles[0]:0.2f} {joint_angles[1]:0.2f} {joint_angles[2]:0.2f}"
+                    msg = (
+                        f"{i=} norm: {np.linalg.norm(error):0.6f} error: {error[0]:.3f} {error[1]:.3f} {error[2]:.3f} "
+                        + (
+                            f"{error[3]:.3f} {error[4]:.3f} {error[5]:.3f} "
+                            if self.dofs == 6 and self.mode == "full"
+                            else ""
+                        )
+                        + f"q: {joint_angles[0]:0.2f} {joint_angles[1]:0.2f} {joint_angles[2]:0.2f}"
+                        + (
+                            f" {joint_angles[3]:0.2f} {joint_angles[4]:0.2f} {joint_angles[5]:0.2f}"
+                            if self.dofs == 6
+                            else ""
+                        )
                     )
+                    print(msg)
 
                 # Check if converged
                 if np.linalg.norm(error) < tolerance:
@@ -99,17 +206,32 @@ class Piper3DOFIK:
                     return joint_angles
 
                 # Update joint angles
-                J = self.jacp[:, :3]
+                if self.dofs == 3:
+                    J = jacp[:, :3].copy()
+                elif self.dofs == 6:
+                    if self.mode == "full":
+                        Jp = jacp[:, :6].copy()
+                        Jr = jacr[:, :6].copy()
+                        J = np.vstack((Jp, Jr))
+                        breakpoint()
+                    elif self.mode == "orientation_only":
+                        J = jacr[:, :6].copy()
+                    else:
+                        raise NotImplementedError()
 
                 # gradient descent
                 if method == "gradient_descent":
-                    joint_angles -= 20.0 * J.T @ error
-
+                    joint_angles -= gradient_descent_step_size * J.T @ error
                 elif method == "newton":
                     joint_angles -= 1.0 * np.linalg.pinv(J) @ error
-
                 else:
                     raise ValueError(f"Unknown method: {method}")
+
+                # TODO figure out whether this is actually bad
+                joint_angles = self.normalize_angles(joint_angles)
+                joint_angles = np.clip(
+                    joint_angles, self.fk.lowers[: self.dofs], self.fk.uppers[self.dofs]
+                )
 
             initial_angles = np.random.uniform(self.fk.lowers, self.fk.uppers)[
                 : self.dofs
@@ -221,10 +343,10 @@ class Piper6DOFIK:
                 # joint_angles[: self.dofs] += 0.8 * np.linalg.pinv(J) @ w_site_from_goal
                 joint_angles[: self.dofs] += 0.5 * J.T @ w_site_from_goal
 
-                # print(
-                #     f"{i=} norm: {np.linalg.norm(w_site_from_goal)} w_error: {w_site_from_goal[0]:.3f} {w_site_from_goal[1]:.3f} {w_site_from_goal[2]:.3f}"
-                #     # + f"q[:3]: {joint_angles[0]:0.2f} {joint_angles[1]:0.2f} {joint_angles[2]:0.2f}"
-                # )
+                print(
+                    f"{i=} norm: {np.linalg.norm(w_site_from_goal)} w_error: {w_site_from_goal[0]:.3f} {w_site_from_goal[1]:.3f} {w_site_from_goal[2]:.3f}"
+                    # + f"q[:3]: {joint_angles[0]:0.2f} {joint_angles[1]:0.2f} {joint_angles[2]:0.2f}"
+                )
                 joint_angles = np.clip(joint_angles, self.lowers, self.uppers)
                 if np.linalg.norm(w_site_from_goal) < tolerance:
                     return joint_angles[: self.dofs]

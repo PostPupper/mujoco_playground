@@ -46,7 +46,9 @@ class IK3DOFController:
     def __init__(self, get_goal_fn: Callable):
         self.get_goal_fn = get_goal_fn
         self.ik = kinematics.Piper3DOFIK(
-            constants.PIPER_RENDERED_NORMAL_XML, site_name="gripper_site_x_forward"
+            dofs=3,
+            model_xml=constants.PIPER_RENDERED_NORMAL_XML,
+            site_name="gripper_site_x_forward",
         )
         self.last_solution: Optional[np.ndarray] = None
 
@@ -79,6 +81,43 @@ class IK6DOFController:
         data.ctrl[:6] = joint_angles
 
 
+class DifferentialIKController:
+    def __init__(self, get_goal_velocity_fn: Callable, dt: float):
+        self.get_goal_velocity_fn = get_goal_velocity_fn
+        self.diff_ik = kinematics.PiperDifferentialIK(
+            model_xml=constants.PIPER_RENDERED_NORMAL_XML,
+            site_name="gripper_site_x_forward",
+            mode="position_only",
+        )
+        self.dt = dt
+
+    def control_fn(self, model: mujoco.MjModel, data: mujoco.MjData) -> None:
+        goal_vel = self.get_goal_velocity_fn()
+        joint_angles = data.qpos[:8].copy()
+        joint_velocities = self.diff_ik(
+            joint_angles=joint_angles, desired_ee_velocity=goal_vel
+        )
+        print(
+            f"v0: {joint_velocities[0]:.2f}, v1: {joint_velocities[1]:.2f}, v2: {joint_velocities[2]:.2f}, "
+            + f"v3: {joint_velocities[3]:.2f}, v4: {joint_velocities[4]:.2f}, v5: {joint_velocities[5]:.2f}"
+        )
+        # breakpoint()
+        # print(data.site("gripper_site_x_forward").v)
+
+        data.ctrl[:6] += joint_velocities[:] * self.dt
+
+
+class DummyController:
+    def __init__(self, input_fn: Callable):
+        self.input_fn = input_fn
+        pass
+
+    def control_fn(self, model: mujoco.MjModel, data: mujoco.MjData) -> None:
+        out = self.input_fn()
+        print(f"{time.time()} input: {out}")
+        pass
+
+
 class MouseClient:
     def __init__(self):
         pass
@@ -100,6 +139,23 @@ class MouseClient:
         #     f"mx: {x_norm:.4f}, my: {y_norm:.4f} x: {x:.4f}, y: {y:.4f}, z: {z:.4f} quat: {quat}"
         # )
         return np.array([x, y, z, *quat])
+
+
+class MouseVelocityClient:
+    def __init__(self):
+        pass
+
+    def get_ee_velocity(self):
+        # Get screen dimensions
+        screen_width, screen_height = pyautogui.size()
+        mouse_x, mouse_y = pyautogui.position()
+
+        # Normalize coordinates to range -1 to 1
+        x_norm = (mouse_x - screen_width / 2) / (screen_width / 2)
+        y_norm = (mouse_y - screen_height / 2) / (screen_height / 2)
+
+        return np.array([x_norm / 2, y_norm / 2, 0.0, 0.0, 0.0, 0.0])
+        # return np.array([0, 0, 0, x_norm, y_norm, 0])
 
 
 class MouseOrientationClient:
@@ -151,13 +207,13 @@ class MouseOrientationClient:
 @click.command()
 @click.option(
     "--client",
-    type=click.Choice(["vr", "mouse", "mouse_orientation"]),
+    type=click.Choice(["vr", "mouse", "mouse_orientation", "mouse_velocity"]),
     default="vr",
     help="Specify the client to use.",
 )
 @click.option(
     "--ik",
-    type=click.Choice(["3dof", "6dof"]),
+    type=click.Choice(["3dof", "6dof", "diff", "dummy"]),
     default="3dof",
     help="Specify the IK controller to use.",
 )
@@ -166,13 +222,25 @@ def main(client, ik):
         goal_specifier = vr_client.VRClient()
     elif client == "mouse":
         goal_specifier = MouseClient()
-    else:
+    elif client == "mouse_orientation":
         goal_specifier = MouseOrientationClient()
+    elif client == "mouse_velocity":
+        goal_specifier = MouseVelocityClient()
+    else:
+        raise ValueError(f"Unknown client {client}")
 
     if ik == "3dof":
         controller = IK3DOFController(get_goal_fn=goal_specifier.get_ee_pos_quat)
-    else:
+    elif ik == "6dof":
         controller = IK6DOFController(get_goal_fn=goal_specifier.get_ee_pos_quat)
+    elif ik == "diff":
+        controller = DifferentialIKController(
+            get_goal_velocity_fn=goal_specifier.get_ee_velocity, dt=0.002
+        )
+    elif ik == "dummy":
+        controller = DummyController(input_fn=goal_specifier.get_ee_velocity)
+    else:
+        raise ValueError(f"Unknown ik controller {ik}")
 
     def load_scene_callback():
         print("loading scene")

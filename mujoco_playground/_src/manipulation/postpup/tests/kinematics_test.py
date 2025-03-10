@@ -8,6 +8,7 @@ from mujoco_playground._src.manipulation.postpup.kinematics import (
     Piper3DOFIK,
     Piper6DOFIK,
     PiperFK,
+    PiperDifferentialIK,
     small_angle_matrix_log,
     rotation_matrix_to_angle_axis,
 )
@@ -32,12 +33,11 @@ def test_piper_learned_ik():
         # ("gradient_descent", (1.5, 1, -1), 1e-5, 1000, 1e-2), # This test case is not working
     ],
 )
-def test_piper_3dof_ik(
+def test_ik_3dof(
     solve_method, test_angles, ik_tolerance, ik_max_iters, solution_tolerance
 ):
     piper_ik = Piper3DOFIK(
-        constants.PIPER_RENDERED_NORMAL_XML,
-        site_name="wrist_base_site",
+        constants.PIPER_RENDERED_NORMAL_XML, site_name="wrist_base_site", dofs=3
     )
     joint_angles_gt = np.zeros(8)
     joint_angles_gt[:3] = test_angles
@@ -68,15 +68,62 @@ def test_piper_3dof_ik(
     )
 
 
-# def test_piper_6dof_ik():
-#     piper_6dof_ik = Piper6DOFIK(
-#         constants.PIPER_RENDERED_NORMAL_XML, site_name="gripper_site_x_forward"
-#     )
-#     piper_6dof_fk = PiperFK(site_name="gripper_site_x_forward")
-#     ee_pos_quat = np.array([0, 0, 0, 0.7071068, 0, -0.7071068, 0])
-#     est_joint_angles = piper_6dof_ik(ee_pos_quat, initial_q=np.zeros(8))
-#     after_fk = piper_6dof_fk(est_joint_angles)
-#     assert np.allclose(ee_pos_quat, after_fk, atol=1e-4)
+def test_ik_6dof_orientation_only():
+    piper_6dof_ik = Piper3DOFIK(
+        constants.PIPER_RENDERED_NORMAL_XML,
+        site_name="gripper_site_x_forward",
+        dofs=6,
+        mode="orientation_only",
+        orientation_weight=1.0,
+    )
+    piper_6dof_fk = PiperFK(site_name="gripper_site_x_forward")
+    ee_pos_quat = np.array([0, 0, 0, 0.7071068, 0, -0.7071068, 0])
+    est_joint_angles = piper_6dof_ik(
+        ee_pos_quat,
+        tolerance=1e-6,
+        max_iters=20,
+        verbose=True,
+        max_seeds=1,
+        method="newton",
+        initial_guess=np.zeros(6),
+    )
+    after_fk = piper_6dof_fk(est_joint_angles)
+    assert np.allclose(ee_pos_quat[3:], after_fk[3:], atol=1e-2)
+
+
+# Does not work :(
+def test_ik_6dof_full():
+    piper_6dof_ik = Piper3DOFIK(
+        constants.PIPER_RENDERED_NORMAL_XML,
+        site_name="gripper_site_x_forward",
+        dofs=6,
+        mode="full",
+        orientation_weight=1.0,
+    )
+    piper_6dof_fk = PiperFK(site_name="gripper_site_x_forward")
+    ee_pos_quat = piper_6dof_fk(np.array([0.3, 0, 0, 0, 0, 0, 0, 0]))
+    est_joint_angles = piper_6dof_ik(
+        ee_pos_quat,
+        tolerance=1e-6,
+        max_iters=20,
+        verbose=True,
+        max_seeds=1,
+        method="gradient_descent",
+        initial_guess=np.array([0.2, 0, 0, 0, 0, 0]),
+    )
+    after_fk = piper_6dof_fk(est_joint_angles)
+    assert np.allclose(ee_pos_quat[:], after_fk[:], atol=1e-2)
+
+
+def test_piper_6dof_ik_old():
+    piper_6dof_ik = Piper6DOFIK(
+        constants.PIPER_RENDERED_NORMAL_XML, site_name="gripper_site_x_forward"
+    )
+    piper_6dof_fk = PiperFK(site_name="gripper_site_x_forward")
+    ee_pos_quat = np.array([0, 0, 0, 0.7071068, 0, -0.7071068, 0])
+    est_joint_angles = piper_6dof_ik(ee_pos_quat, initial_q=np.zeros(8))
+    after_fk = piper_6dof_fk(est_joint_angles)
+    assert np.allclose(ee_pos_quat[3:], after_fk[3:], atol=1e-4)
 
 
 def test_small_angle_matrix_log():
@@ -93,6 +140,40 @@ def test_rotation_matrix_to_angle_axis():
     R_rel = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
     angle_axis = rotation_matrix_to_angle_axis(R_rel)
     assert np.allclose(angle_axis, np.array([0, 0, np.pi / 2]))
+
+
+def test_diff_ik_full():
+    piper_diff_ik = PiperDifferentialIK(
+        constants.PIPER_RENDERED_NORMAL_XML, site_name="wrist_base_site", mode="full"
+    )
+    joint_angles = np.zeros(8)
+    desired_ee_velocity = np.array([0.1, 0.2, 0.3, 0.1, 0.2, 0.3])
+    joint_velocities = piper_diff_ik(joint_angles, desired_ee_velocity)
+    assert joint_velocities.shape == (6,)
+
+
+def test_diff_ik_orientation_only():
+    piper_diff_ik = PiperDifferentialIK(
+        constants.PIPER_RENDERED_NORMAL_XML,
+        site_name="wrist_base_site",
+        mode="orientation_only",
+    )
+    joint_angles = np.zeros(8)
+    desired_ee_velocity = np.array([0.0, 0.0, 0.0, 0.1, 0.2, 0.3])
+    joint_velocities = piper_diff_ik(joint_angles, desired_ee_velocity)
+    assert joint_velocities.shape == (6,)
+
+
+def test_diff_ik_position_only():
+    piper_diff_ik = PiperDifferentialIK(
+        constants.PIPER_RENDERED_NORMAL_XML,
+        site_name="wrist_base_site",
+        mode="position_only",
+    )
+    joint_angles = np.zeros(8)
+    desired_ee_velocity = np.array([0.1, 0.2, 0.3, 0.0, 0.0, 0.0])
+    joint_velocities = piper_diff_ik(joint_angles, desired_ee_velocity)
+    assert joint_velocities.shape == (3,)
 
 
 # def test_piper_fk():

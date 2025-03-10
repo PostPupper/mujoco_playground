@@ -1,4 +1,6 @@
+import copy
 from dataclasses import dataclass
+from typing import Tuple
 import pytransform3d
 import numpy as np
 
@@ -17,6 +19,8 @@ class VRClient:
         T_world_from_my_reference: np.ndarray
         T_reference_from_my_controller: np.ndarray
         T_controller_from_my_controller: np.ndarray
+        v_reference_from_my_controller: np.ndarray
+
         mode: str
 
         def __init__(self):
@@ -24,7 +28,20 @@ class VRClient:
             self.T_world_from_my_reference = np.eye(4)
             self.T_reference_from_my_controller = np.eye(4)
             self.T_controller_from_my_controller = np.eye(4)
+            self.v_reference_from_my_controller = np.zeros(3)  # linear velocity
+            self.w_reference_from_my_controller = np.zeros(3)  # angular velocity
             self.mode = "inactive"
+
+    # @dataclass
+    # class LatestHandData:
+    #     T_reference_from_my_controller: np.ndarray
+    #     v_reference_from_my_controller: np.ndarray
+    #     w_reference_from_my_controller: np.ndarray
+
+    #     def __init__(self):
+    #         self.T_reference_from_my_controller = np.eye(4)
+    #         self.v_reference_from_my_controller = np.zeros(3)
+    #         self.w_reference_from_my_controller = np.zeros(3)
 
     def __init__(self):
         self.context = zmq.Context()
@@ -40,9 +57,9 @@ class VRClient:
         )
 
         # Thread safe access to the latest hand data
-        self.latest_hand_T_reference_from_my_controller = [
-            deque([np.eye(4)], maxlen=1),
-            deque([np.eye(4)], maxlen=1),
+        self.latest_hand_data = [
+            deque([VRClient.HandData()], maxlen=1),
+            deque([VRClient.HandData()], maxlen=1),
         ]
 
         self.recv_thread = threading.Thread(
@@ -63,6 +80,21 @@ class VRClient:
                 data["orientation"]["z"],
             ]
         )
+        v_world_from_controller = np.array(
+            [
+                data["velocity"]["x"],
+                data["velocity"]["y"],
+                data["velocity"]["z"],
+            ]
+        )
+        w_world_from_controller = np.array(
+            [
+                data["angular_velocity"]["x"],
+                data["angular_velocity"]["y"],
+                data["angular_velocity"]["z"],
+            ]
+        )
+
         hand_data.T_world_from_controller = (
             pytransform3d.transformations.transform_from_pq(pos_quat)
         )
@@ -90,13 +122,26 @@ class VRClient:
                 @ hand_data.T_world_from_controller
                 @ hand_data.T_controller_from_my_controller
             )
-            print("relative pos: ", hand_data.T_reference_from_my_controller[:3, 3])
+            hand_data.v_reference_from_my_controller = (
+                hand_data.T_world_from_my_reference[:3, :3].T @ v_world_from_controller
+            )
+            hand_data.w_reference_from_my_controller = (
+                hand_data.T_world_from_my_reference[:3, :3].T @ w_world_from_controller
+            )
+            print(
+                "relative pos: ",
+                hand_data.T_reference_from_my_controller[:3, 3],
+                "vel: ",
+                hand_data.v_reference_from_my_controller,
+                "ang vel: ",
+                hand_data.w_reference_from_my_controller,
+            )
         else:
             hand_data.T_reference_from_my_controller = np.eye(4)
+            hand_data.v_reference_from_my_controller = np.zeros(3)
+            hand_data.w_reference_from_my_controller = np.zeros(3)
 
-        self.latest_hand_T_reference_from_my_controller[data["hand"]].append(
-            hand_data.T_reference_from_my_controller
-        )
+        self.latest_hand_data[data["hand"]].append(copy.deepcopy(hand_data))
 
     def receive_messages_thread(self):
         while True:
@@ -106,16 +151,25 @@ class VRClient:
             self.update_hands(hand_data)
 
     def get_right_hand(self):
-        if len(self.latest_hand_T_reference_from_my_controller[1]) == 0:
+        if len(self.latest_hand_data[1]) == 0:
             return None
-        data = self.latest_hand_T_reference_from_my_controller[1].popleft()
-        self.latest_hand_T_reference_from_my_controller[1].append(data)
+        data = self.latest_hand_data[1].popleft()
+        self.latest_hand_data[1].append(copy.deepcopy(data))
         return data
 
-    def get_ee_pos_quat(self):
-        T_reference_from_controller_R = self.get_right_hand()
+    def get_ee_velocity(self) -> Tuple[np.ndarray, np.ndarray]:
+        hand_data = self.get_right_hand()
+        return 1.5 * np.concatenate(
+            (
+                hand_data.v_reference_from_my_controller,
+                hand_data.w_reference_from_my_controller,
+            )
+        )
+
+    def get_ee_pos_quat(self) -> np.ndarray:
+        hand_data = self.get_right_hand()
         pos_quat = pytransform3d.transformations.pq_from_transform(
-            T_reference_from_controller_R
+            hand_data.T_reference_from_controller
         )
         x = 0.16866421
         y = 0.0
