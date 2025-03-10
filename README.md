@@ -1,7 +1,9 @@
 
 # PostPup
 
-## Installation
+## Basic simulation
+
+### Installation
 ```sh
 conda create -n postpup python==3.12
 conda activate postpup
@@ -9,13 +11,44 @@ pip install typeguard
 pip install -e .
 ```
 
-## Use
+### Use
 
 Try the interactive viewer
 ```sh
 python3 mujoco_playground/_src/manipulation/postpup/place_letter.py
 ```
 
+## VR Control
+
+### Installation
+1. Install Steam
+1. Install SteamVR
+1. Install ALVR
+1. Make a new conda env
+  ```sh
+  conda create -n alvr python==3.12
+  conda activate alvr
+  ```
+1. Install fork of pyopenxr
+  ``sh
+  pip install pyopenxr@git+https://github.com/Nate711/pyopenxr.git
+  ``
+1. Install fork of pyopenxr_examples
+  ``
+  git clone https://github.com/Nate711/pyopenxr_examples.git
+  cd pyopenxr_examples
+  pip install -e .
+  ``
+
+### Use
+1. Launch `ALVR Launcher`
+1. Click "Launch" in ALVR window
+1. Click "Launch SteamVR" in new ALVR window
+1. In one shell, run `hello_xr`
+1. In another shell, run 
+```sh
+python3 vr_control.py --client=vr --ik=diff_position
+```
 
 # MuJoCo Playground
 

@@ -159,9 +159,9 @@ class VRClient:
 
     def get_ee_velocity(self) -> Tuple[np.ndarray, np.ndarray]:
         hand_data = self.get_right_hand()
-        return 1.5 * np.concatenate(
+        return np.concatenate(
             (
-                hand_data.v_reference_from_my_controller,
+                1.5 * hand_data.v_reference_from_my_controller,
                 hand_data.w_reference_from_my_controller,
             )
         )

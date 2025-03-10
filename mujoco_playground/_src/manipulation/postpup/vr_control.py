@@ -82,12 +82,15 @@ class IK6DOFController:
 
 
 class DifferentialIKController:
-    def __init__(self, get_goal_velocity_fn: Callable, dt: float):
+    def __init__(self, get_goal_velocity_fn: Callable, dt: float, mode: str, site_name:str="gripper_site_x_forward"):
         self.get_goal_velocity_fn = get_goal_velocity_fn
         self.diff_ik = kinematics.PiperDifferentialIK(
             model_xml=constants.PIPER_RENDERED_NORMAL_XML,
             site_name="gripper_site_x_forward",
-            mode="position_only",
+            mode=mode,
+        )
+        self.fk = kinematics.PiperFK(
+            constants.PIPER_RENDERED_NORMAL_XML, site_name=site_name
         )
         self.dt = dt
 
@@ -101,10 +104,10 @@ class DifferentialIKController:
             f"v0: {joint_velocities[0]:.2f}, v1: {joint_velocities[1]:.2f}, v2: {joint_velocities[2]:.2f}, "
             + f"v3: {joint_velocities[3]:.2f}, v4: {joint_velocities[4]:.2f}, v5: {joint_velocities[5]:.2f}"
         )
-        # breakpoint()
-        # print(data.site("gripper_site_x_forward").v)
 
-        data.ctrl[:6] += joint_velocities[:] * self.dt
+        new_control = data.ctrl[:6] + joint_velocities[:] * self.dt
+        new_control = np.clip(new_control, self.fk.lowers[:6], self.fk.uppers[:6])
+        data.ctrl[:6] = new_control
 
 
 class DummyController:
@@ -213,7 +216,7 @@ class MouseOrientationClient:
 )
 @click.option(
     "--ik",
-    type=click.Choice(["3dof", "6dof", "diff", "dummy"]),
+    type=click.Choice(["3dof", "6dof", "diff_orientation", "diff_position", "dummy"]),
     default="3dof",
     help="Specify the IK controller to use.",
 )
@@ -233,9 +236,17 @@ def main(client, ik):
         controller = IK3DOFController(get_goal_fn=goal_specifier.get_ee_pos_quat)
     elif ik == "6dof":
         controller = IK6DOFController(get_goal_fn=goal_specifier.get_ee_pos_quat)
-    elif ik == "diff":
+    elif ik == "diff_orientation":
         controller = DifferentialIKController(
-            get_goal_velocity_fn=goal_specifier.get_ee_velocity, dt=0.002
+            get_goal_velocity_fn=goal_specifier.get_ee_velocity,
+            dt=0.002,
+            mode="orientation_only",
+        )
+    elif ik == "diff_position":
+        controller = DifferentialIKController(
+            get_goal_velocity_fn=goal_specifier.get_ee_velocity,
+            dt=0.002,
+            mode="position_only",
         )
     elif ik == "dummy":
         controller = DummyController(input_fn=goal_specifier.get_ee_velocity)
