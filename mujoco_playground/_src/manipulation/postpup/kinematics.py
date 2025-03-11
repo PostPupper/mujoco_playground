@@ -9,7 +9,7 @@ from mujoco_playground._src.manipulation.postpup import (
 from etils import epath
 import numpy as np
 import torch
-
+np.set_printoptions(formatter={'float': '{: 6.3f}'.format})
 
 class PiperLearnedIK:
     def __init__(
@@ -213,7 +213,7 @@ class Piper3DOFIK:
                         Jp = jacp[:, :6].copy()
                         Jr = jacr[:, :6].copy()
                         J = np.vstack((Jp, Jr))
-                        breakpoint()
+                        # breakpoint()
                     elif self.mode == "orientation_only":
                         J = jacr[:, :6].copy()
                     else:
@@ -223,15 +223,19 @@ class Piper3DOFIK:
                 if method == "gradient_descent":
                     joint_angles -= gradient_descent_step_size * J.T @ error
                 elif method == "newton":
-                    joint_angles -= 1.0 * np.linalg.pinv(J) @ error
+                    lambda_identity = 1e-3 * np.eye(J.shape[0])
+                    joint_velocities = np.linalg.inv(J.T @ J + lambda_identity) @ J.T @ error
+                    if verbose:
+                        print(f"{i}: {joint_velocities}")
+                    joint_angles -= 0.1 * joint_velocities
                 else:
                     raise ValueError(f"Unknown method: {method}")
 
                 # TODO figure out whether this is actually bad
-                joint_angles = self.normalize_angles(joint_angles)
-                joint_angles = np.clip(
-                    joint_angles, self.fk.lowers[: self.dofs], self.fk.uppers[self.dofs]
-                )
+                # joint_angles = self.normalize_angles(joint_angles)
+                # joint_angles = np.clip(
+                #     joint_angles, self.fk.lowers[: self.dofs], self.fk.uppers[self.dofs]
+                # )
 
             initial_angles = np.random.uniform(self.fk.lowers, self.fk.uppers)[
                 : self.dofs

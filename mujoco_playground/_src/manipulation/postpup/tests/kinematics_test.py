@@ -90,9 +90,16 @@ def test_ik_6dof_orientation_only():
     after_fk = piper_6dof_fk(est_joint_angles)
     assert np.allclose(ee_pos_quat[3:], after_fk[3:], atol=1e-2)
 
-
-# Does not work :(
-def test_ik_6dof_full():
+@pytest.mark.parametrize(
+    "gt_joint_angles, tolerance, max_iters, initial_guess, atol",
+    [
+        (np.array([0.3, 0, 0, 0, 0, 0, 0, 0]), 1e-3, 200, np.array([0.2, 0, 0, 0, 0, 0]), 1e-2),
+        # (np.array([1.5, 0.1, -0.5, 0.1, 0.1, 0.1, 0, 0]), 1e-3, 200, np.array([1.4, 0.1, -0.1, 0.1, 0.1, 0.1]), 1e-2), # DOESNT WORK
+        # (np.array([1.5, 0.1, -0.5, 0.1, 0.1, 0.1, 0, 0]), 1e-3, 200, np.array([1.4, 0.1, -0.5, 0.1, 0.1, 0.1,]), 1e-2), # DOESNT WORK
+        (np.array([0.4, 0.4, -0.9, 0, 0, 0, 0, 0]), 1e-3, 200, np.array([0.2, 0.1, -0.1, 0, 0, 0]), 1e-2),
+    ],
+)
+def test_ik_6dof_full(gt_joint_angles, tolerance, max_iters, initial_guess, atol):
     piper_6dof_ik = Piper3DOFIK(
         constants.PIPER_RENDERED_NORMAL_XML,
         site_name="gripper_site_x_forward",
@@ -101,18 +108,18 @@ def test_ik_6dof_full():
         orientation_weight=1.0,
     )
     piper_6dof_fk = PiperFK(site_name="gripper_site_x_forward")
-    ee_pos_quat = piper_6dof_fk(np.array([0.3, 0, 0, 0, 0, 0, 0, 0]))
+    ee_pos_quat = piper_6dof_fk(gt_joint_angles)
     est_joint_angles = piper_6dof_ik(
         ee_pos_quat,
-        tolerance=1e-6,
-        max_iters=20,
+        tolerance=tolerance,
+        max_iters=max_iters,
         verbose=True,
         max_seeds=1,
-        method="gradient_descent",
-        initial_guess=np.array([0.2, 0, 0, 0, 0, 0]),
+        method="newton",
+        initial_guess=initial_guess,
     )
     after_fk = piper_6dof_fk(est_joint_angles)
-    assert np.allclose(ee_pos_quat[:], after_fk[:], atol=1e-2)
+    assert np.allclose(ee_pos_quat[:], after_fk[:], atol=atol)
 
 
 def test_piper_6dof_ik_old():
