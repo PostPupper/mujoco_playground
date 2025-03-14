@@ -192,6 +192,7 @@ def test_diff_ik_full(joint_angles: np.ndarray, desired_ee_velocity: np.ndarray)
         constants.PIPER_RENDERED_NORMAL_XML,
         site_name="gripper_site_x_forward",
         mode="full",
+        joint_velocity_limit=np.inf,
     )
     joint_velocities = piper_diff_ik(joint_angles, desired_ee_velocity)
     J = piper_diff_ik.jacobian_6dof()
@@ -226,6 +227,7 @@ def test_diff_ik_orientation_only(
         constants.PIPER_RENDERED_NORMAL_XML,
         site_name="gripper_site_x_forward",
         mode="orientation_only",
+        joint_velocity_limit=np.inf,
     )
     joint_velocities = piper_diff_ik(joint_angles, desired_ee_velocity)
     J = piper_diff_ik.jacobian_6dof()
@@ -260,6 +262,7 @@ def test_diff_ik_position_only(
         constants.PIPER_RENDERED_NORMAL_XML,
         site_name="gripper_site_x_forward",
         mode="position_only",
+        joint_velocity_limit=np.inf,
     )
     joint_velocities = piper_diff_ik(joint_angles, desired_ee_velocity)
     J = piper_diff_ik.jacobian_6dof()

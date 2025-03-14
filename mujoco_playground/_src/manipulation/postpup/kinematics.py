@@ -43,6 +43,7 @@ class PiperDifferentialIK:
         model_xml: epath.Path,
         site_name: str,
         mode: str = "full",
+        joint_velocity_limit:float = 3.0,
     ):
         self.site_name = site_name
         self.fk = PiperFK(model_xml=model_xml, site_name=self.site_name)
@@ -56,6 +57,41 @@ class PiperDifferentialIK:
 
         self.arm_dofs = 6
         self.base_arm_dofs = 3
+        self.joint_velocity_limit = joint_velocity_limit
+
+    def limit_joint_velocities(self, joint_velocities: np.ndarray):
+        return np.clip(joint_velocities, -self.joint_velocity_limit, self.joint_velocity_limit)
+
+    # TODO: TEST THIS
+    def error_twist(self, ee_pos_quat: np.ndarray):
+        mujoco.mj_kinematics(self.mj_model, self.mj_data)
+        mujoco.mj_comPos(self.mj_model, self.mj_data)
+        site = self.mj_data.site(self.site_name)
+        p_site_from_goal = site.xpos - ee_pos_quat[:3]
+
+        R_world_from_site = site.xmat.copy().reshape((3, 3))
+        R_world_from_goal = np.zeros(9)
+        mujoco.mju_quat2Mat(R_world_from_goal, ee_pos_quat[3:])
+        R_world_from_goal = R_world_from_goal.reshape((3, 3))
+        R_site_from_goal = R_world_from_site.T @ R_world_from_goal
+        w_site_from_goal = rotation_matrix_to_angle_axis(R_site_from_goal)
+        w_goal_from_site = -w_site_from_goal
+
+        if self.mode == "full":
+            error = np.concatenate(
+                (
+                    p_site_from_goal.copy(),
+                    w_goal_from_site.copy(),
+                )
+            )
+        elif self.mode == "orientation_only":
+            error = w_goal_from_site
+        elif self.mode == "position_only":
+            error = p_site_from_goal
+        else:
+            raise NotImplementedError()
+
+        return error
 
     def set_joint_angles(self, joint_angles: np.ndarray):
         self.mj_data.qpos[:] = joint_angles.copy()
@@ -89,12 +125,15 @@ class PiperDifferentialIK:
 
         if self.mode == "full":
             joint_velocities = np.linalg.pinv(J) @ desired_ee_velocity
+            joint_velocities = self.limit_joint_velocities(joint_velocities)
             return joint_velocities
         elif self.mode == "orientation_only":
             joint_velocities = np.linalg.pinv(J[3:, :]) @ desired_ee_velocity[3:]
+            joint_velocities = self.limit_joint_velocities(joint_velocities)
             return joint_velocities
         elif self.mode == "position_only":
             joint_velocities = np.linalg.pinv(J[:3, :3]) @ desired_ee_velocity[:3]
+            joint_velocities = self.limit_joint_velocities(joint_velocities)
             return np.concatenate((joint_velocities, np.zeros(3)))
         else:
             raise NotImplementedError

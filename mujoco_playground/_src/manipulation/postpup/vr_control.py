@@ -88,35 +88,44 @@ class DifferentialIKController:
         get_goal_velocity_fn: Callable,
         dt: float,
         mode: str,
+        keep_nominal: bool = False,
         site_name: str = "gripper_site_x_forward",
+        initial_angles: np.ndarray = np.array([0, 1.0, -1.0, 0, 0.7, 0, 0, 0]),
+        joint_velocity_limit: float = 3.0,
     ):
         self.get_goal_velocity_fn = get_goal_velocity_fn
+        self.mode = mode
+        self.keep_nominal = keep_nominal
+        if self.keep_nominal:
+            raise NotImplementedError("keep_nominal==True not implemented")
+
         self.diff_ik = kinematics.PiperDifferentialIK(
             model_xml=constants.PIPER_RENDERED_NORMAL_XML,
             site_name="gripper_site_x_forward",
-            mode=mode,
+            mode="full" if self.keep_nominal else mode,
+            joint_velocity_limit=joint_velocity_limit,
         )
         self.fk = kinematics.PiperFK(
             constants.PIPER_RENDERED_NORMAL_XML, site_name=site_name
         )
         self.dt = dt
+        self.joint_angles = initial_angles.copy()
 
     def control_fn(self, model: mujoco.MjModel, data: mujoco.MjData) -> None:
         goal_vel = self.get_goal_velocity_fn()
-        joint_angles = data.qpos[:8].copy()
         joint_velocities = self.diff_ik(
-            joint_angles=joint_angles, desired_ee_velocity=goal_vel
+            joint_angles=self.joint_angles, desired_ee_velocity=goal_vel
         )
         print(
             f"v0: {joint_velocities[0]:.2f}, v1: {joint_velocities[1]:.2f}, v2: {joint_velocities[2]:.2f}, "
             + f"v3: {joint_velocities[3]:.2f}, v4: {joint_velocities[4]:.2f}, v5: {joint_velocities[5]:.2f}"
         )
 
-        new_control = data.ctrl[:6] + joint_velocities[:] * self.dt
-        new_control = np.clip(
-            new_control, self.fk.lowers[:6], self.fk.uppers[:6]
+        self.joint_angles[:6] = self.joint_angles[:6] + joint_velocities[:] * self.dt
+        self.joint_angles[:6] = np.clip(
+            self.joint_angles[:6], self.fk.lowers[:6], self.fk.uppers[:6]
         )
-        data.ctrl[:6] = new_control
+        data.ctrl[:6] = self.joint_angles[:6]
 
 
 class DummyController:
@@ -153,6 +162,7 @@ class MouseClient:
         return np.array([x, y, z, *quat])
 
 
+# TODO: DOES NOT WORK
 class KeyboardVelocityClient:
     def __init__(self):
         self.velocity = np.zeros(6)
@@ -189,9 +199,7 @@ class KeyboardVelocityClient:
                 if key in self.key_map:
                     self.velocity -= self.key_map[key]
 
-        with keyboard.Listener(
-            on_press=on_press, on_release=on_release
-        ) as listener:
+        with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
             listener.join()
 
     def get_ee_velocity(self):
@@ -200,26 +208,36 @@ class KeyboardVelocityClient:
 
 
 class MouseVelocityClient:
-    def __init__(self):
-        # self.mouse = Controller()
-        pass
+    def __init__(self, multiplier: float = 0.25, mode: str = "linear"):
+        self.multiplier = multiplier
+        self.mode = mode
+        assert self.mode in ["linear", "angular"]
 
     def get_ee_velocity(self):
         # Get screen dimensions
         screen_width, screen_height = pyautogui.size()
         mouse_x, mouse_y = pyautogui.position()
-        # self.mouse = Controller()
-        # mouse_x, mouse_y = self.mouse.position
-        print(f"mouse pos: {mouse_x}, {mouse_y}")
-
         # Normalize coordinates to range -1 to 1
         x_norm = (mouse_x - screen_width / 2) / (screen_width / 2)
         y_norm = (mouse_y - screen_height / 2) / (screen_height / 2)
 
-        print("Mouse client velocity: ", [x_norm, y_norm, 0])
-        return np.array([x_norm / 2, y_norm / 2, 0.0, 0.0, 0.0, 0.0])
-
-        # return np.array([0, 0, 0, x_norm, y_norm, 0])
+        if self.mode == "linear":
+            ee_velocity = np.array(
+                [
+                    -y_norm * self.multiplier,
+                    -x_norm * self.multiplier,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                ]
+            )
+        elif self.mode == "angular":
+            ee_velocity = np.array([0, 0, 0, x_norm, y_norm, 0])
+        else:
+            raise ValueError(f"Unknown mode {self.mode}")
+        print(f"Mouse client velocity: {ee_velocity}")
+        return ee_velocity
 
 
 class MouseOrientationClient:
@@ -276,7 +294,8 @@ class MouseOrientationClient:
             "vr",
             "mouse",
             "mouse_orientation",
-            "mouse_velocity",
+            "mouse_velocity_linear",
+            "mouse_velocity_angular",
             "keyboard_velocity",
         ]
     ),
@@ -286,7 +305,7 @@ class MouseOrientationClient:
 @click.option(
     "--ik",
     type=click.Choice(
-        ["3dof", "6dof", "diff_orientation", "diff_position", "dummy"]
+        ["3dof", "6dof", "diff_orientation", "diff_position", "diff", "dummy"]
     ),
     default="3dof",
     help="Specify the IK controller to use.",
@@ -298,20 +317,24 @@ def main(client, ik):
         goal_specifier = MouseClient()
     elif client == "mouse_orientation":
         goal_specifier = MouseOrientationClient()
-    elif client == "mouse_velocity":
-        goal_specifier = MouseVelocityClient()
+    elif client == "mouse_velocity_linear":
+        goal_specifier = MouseVelocityClient(mode="linear")
+    elif client == "mouse_velocity_angular":
+        goal_specifier = MouseVelocityClient(mode="angular")
     elif client == "keyboard_velocity":
         goal_specifier = KeyboardVelocityClient()
     else:
         raise ValueError(f"Unknown client {client}")
 
     if ik == "3dof":
-        controller = IK3DOFController(
-            get_goal_fn=goal_specifier.get_ee_pos_quat
-        )
+        controller = IK3DOFController(get_goal_fn=goal_specifier.get_ee_pos_quat)
     elif ik == "6dof":
-        controller = IK6DOFController(
-            get_goal_fn=goal_specifier.get_ee_pos_quat
+        controller = IK6DOFController(get_goal_fn=goal_specifier.get_ee_pos_quat)
+    elif ik == "diff":
+        controller = DifferentialIKController(
+            get_goal_velocity_fn=goal_specifier.get_ee_velocity,
+            dt=0.002,
+            mode="full",
         )
     elif ik == "diff_orientation":
         controller = DifferentialIKController(
