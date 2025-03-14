@@ -1,0 +1,43 @@
+# environment.yml
+# Keywords: mjx, mujoco, sim2real, reinforcement learning
+
+name: postpup
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      # Core dependencies
+      - brax>=0.12.1
+      - etils
+      - flax
+      - jax
+      - lxml
+      - ml_collections
+      - mujoco-mjx>=3.2.7
+      - mujoco>=3.2.7
+      - tqdm
+      # postpup
+      - lightning
+      - torch
+      - pyautogui
+      - pytransform3d
+      # Optional dependencies for testing
+      - absl-py
+      - dm_control
+      - pytest
+      - pytest-xdist
+      # Optional dependencies for notebooks
+      - matplotlib
+      - mediapy
+      - jupyter
+      - wandb
+      # Optional dependencies for development
+      - mypy
+      - pyink
+      - pytype
+      - ruff
+      - pre-commit
+      - pylint

@@ -22,6 +22,7 @@ from collections import deque
 
 import pytransform3d
 import click
+from pynput.mouse import Controller
 
 
 class VRController:
@@ -82,7 +83,13 @@ class IK6DOFController:
 
 
 class DifferentialIKController:
-    def __init__(self, get_goal_velocity_fn: Callable, dt: float, mode: str, site_name:str="gripper_site_x_forward"):
+    def __init__(
+        self,
+        get_goal_velocity_fn: Callable,
+        dt: float,
+        mode: str,
+        site_name: str = "gripper_site_x_forward",
+    ):
         self.get_goal_velocity_fn = get_goal_velocity_fn
         self.diff_ik = kinematics.PiperDifferentialIK(
             model_xml=constants.PIPER_RENDERED_NORMAL_XML,
@@ -106,7 +113,9 @@ class DifferentialIKController:
         )
 
         new_control = data.ctrl[:6] + joint_velocities[:] * self.dt
-        new_control = np.clip(new_control, self.fk.lowers[:6], self.fk.uppers[:6])
+        new_control = np.clip(
+            new_control, self.fk.lowers[:6], self.fk.uppers[:6]
+        )
         data.ctrl[:6] = new_control
 
 
@@ -144,20 +153,72 @@ class MouseClient:
         return np.array([x, y, z, *quat])
 
 
+class KeyboardVelocityClient:
+    def __init__(self):
+        self.velocity = np.zeros(6)
+        self.key_map = {
+            "w": np.array([0.1, 0, 0, 0, 0, 0]),
+            "s": np.array([-0.1, 0, 0, 0, 0, 0]),
+            "a": np.array([0, 0.1, 0, 0, 0, 0]),
+            "d": np.array([0, -0.1, 0, 0, 0, 0]),
+            "up": np.array([0, 0, 0, 0.1, 0, 0]),
+            "down": np.array([0, 0, 0, -0.1, 0, 0]),
+            "left": np.array([0, 0, 0, 0, 0.1, 0]),
+            "right": np.array([0, 0, 0, 0, -0.1, 0]),
+        }
+        self.listener = threading.Thread(target=self._listen_to_keyboard)
+        self.listener.daemon = True
+        self.listener.start()
+
+    def _listen_to_keyboard(self):
+        import pynput.keyboard as keyboard
+
+        def on_press(key):
+            try:
+                if key.char in self.key_map:
+                    self.velocity += self.key_map[key.char]
+            except AttributeError:
+                if key in self.key_map:
+                    self.velocity += self.key_map[key]
+
+        def on_release(key):
+            try:
+                if key.char in self.key_map:
+                    self.velocity -= self.key_map[key.char]
+            except AttributeError:
+                if key in self.key_map:
+                    self.velocity -= self.key_map[key]
+
+        with keyboard.Listener(
+            on_press=on_press, on_release=on_release
+        ) as listener:
+            listener.join()
+
+    def get_ee_velocity(self):
+        print("Keyboard client velocity: ", self.velocity)
+        return self.velocity
+
+
 class MouseVelocityClient:
     def __init__(self):
+        # self.mouse = Controller()
         pass
 
     def get_ee_velocity(self):
         # Get screen dimensions
         screen_width, screen_height = pyautogui.size()
         mouse_x, mouse_y = pyautogui.position()
+        # self.mouse = Controller()
+        # mouse_x, mouse_y = self.mouse.position
+        print(f"mouse pos: {mouse_x}, {mouse_y}")
 
         # Normalize coordinates to range -1 to 1
         x_norm = (mouse_x - screen_width / 2) / (screen_width / 2)
         y_norm = (mouse_y - screen_height / 2) / (screen_height / 2)
 
+        print("Mouse client velocity: ", [x_norm, y_norm, 0])
         return np.array([x_norm / 2, y_norm / 2, 0.0, 0.0, 0.0, 0.0])
+
         # return np.array([0, 0, 0, x_norm, y_norm, 0])
 
 
@@ -210,13 +271,23 @@ class MouseOrientationClient:
 @click.command()
 @click.option(
     "--client",
-    type=click.Choice(["vr", "mouse", "mouse_orientation", "mouse_velocity"]),
+    type=click.Choice(
+        [
+            "vr",
+            "mouse",
+            "mouse_orientation",
+            "mouse_velocity",
+            "keyboard_velocity",
+        ]
+    ),
     default="vr",
     help="Specify the client to use.",
 )
 @click.option(
     "--ik",
-    type=click.Choice(["3dof", "6dof", "diff_orientation", "diff_position", "dummy"]),
+    type=click.Choice(
+        ["3dof", "6dof", "diff_orientation", "diff_position", "dummy"]
+    ),
     default="3dof",
     help="Specify the IK controller to use.",
 )
@@ -229,13 +300,19 @@ def main(client, ik):
         goal_specifier = MouseOrientationClient()
     elif client == "mouse_velocity":
         goal_specifier = MouseVelocityClient()
+    elif client == "keyboard_velocity":
+        goal_specifier = KeyboardVelocityClient()
     else:
         raise ValueError(f"Unknown client {client}")
 
     if ik == "3dof":
-        controller = IK3DOFController(get_goal_fn=goal_specifier.get_ee_pos_quat)
+        controller = IK3DOFController(
+            get_goal_fn=goal_specifier.get_ee_pos_quat
+        )
     elif ik == "6dof":
-        controller = IK6DOFController(get_goal_fn=goal_specifier.get_ee_pos_quat)
+        controller = IK6DOFController(
+            get_goal_fn=goal_specifier.get_ee_pos_quat
+        )
     elif ik == "diff_orientation":
         controller = DifferentialIKController(
             get_goal_velocity_fn=goal_specifier.get_ee_velocity,
@@ -261,8 +338,10 @@ def main(client, ik):
             dt=0.002,
         )
 
+    print("Starting viewer")
     viewer.launch(loader=load_scene_callback)
 
 
 if __name__ == "__main__":
+    print("HI")
     main()
