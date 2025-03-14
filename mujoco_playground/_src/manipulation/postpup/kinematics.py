@@ -9,7 +9,9 @@ from mujoco_playground._src.manipulation.postpup import (
 from etils import epath
 import numpy as np
 import torch
-np.set_printoptions(formatter={'float': '{: 6.3f}'.format})
+
+np.set_printoptions(formatter={"float": "{: 6.3f}".format})
+
 
 class PiperLearnedIK:
     def __init__(
@@ -55,6 +57,17 @@ class PiperDifferentialIK:
         self.arm_dofs = 6
         self.base_arm_dofs = 3
 
+    def set_joint_angles(self, joint_angles: np.ndarray):
+        self.mj_data.qpos[:] = joint_angles.copy()
+
+    def jacobian_6dof(self):
+        mujoco.mj_kinematics(self.mj_model, self.mj_data)
+        mujoco.mj_comPos(self.mj_model, self.mj_data)
+        jacp = np.zeros((3, self.mj_model.nv))
+        jacr = np.zeros((3, self.mj_model.nv))
+        mujoco.mj_jacSite(self.mj_model, self.mj_data, jacp, jacr, self.site_id)
+        return np.vstack((jacp[:, : self.arm_dofs], jacr[:, : self.arm_dofs]))
+
     def __call__(
         self,
         joint_angles: np.ndarray,
@@ -71,25 +84,18 @@ class PiperDifferentialIK:
         assert joint_angles.size == self.mj_model.nq
         assert desired_ee_velocity.size == 6
 
-        self.mj_data.qpos[:] = joint_angles
-        mujoco.mj_kinematics(self.mj_model, self.mj_data)
-        mujoco.mj_comPos(self.mj_model, self.mj_data)
-        jacp = np.zeros((3, self.mj_model.nv))
-        jacr = np.zeros((3, self.mj_model.nv))
-        mujoco.mj_jacSite(self.mj_model, self.mj_data, jacp, jacr, self.site_id)
-        # breakpoint()
+        self.set_joint_angles(joint_angles)
+        J = self.jacobian_6dof()
 
         if self.mode == "full":
-            Jp = jacp[:, : self.arm_dofs].copy()
-            Jr = jacr[:, : self.arm_dofs].copy()
-            J = np.vstack((Jp, Jr))  # 6x6
-            return np.linalg.pinv(J) @ desired_ee_velocity
+            joint_velocities = np.linalg.pinv(J) @ desired_ee_velocity
+            return joint_velocities
         elif self.mode == "orientation_only":
-            J = jacr[:, : self.arm_dofs].copy()  # 3x6
-            return np.linalg.pinv(J) @ desired_ee_velocity[3:]
+            joint_velocities = np.linalg.pinv(J[3:, :]) @ desired_ee_velocity[3:]
+            return joint_velocities
         elif self.mode == "position_only":
-            J = jacp[:, : self.base_arm_dofs].copy()  # 3x3
-            return np.concatenate((np.linalg.pinv(J) @ desired_ee_velocity[:3], np.zeros(3)))
+            joint_velocities = np.linalg.pinv(J[:3, :3]) @ desired_ee_velocity[:3]
+            return np.concatenate((joint_velocities, np.zeros(3)))
         else:
             raise NotImplementedError
 
@@ -223,8 +229,10 @@ class Piper3DOFIK:
                 if method == "gradient_descent":
                     joint_angles -= gradient_descent_step_size * J.T @ error
                 elif method == "newton":
-                    lambda_identity = 1e-3 * np.eye(J.shape[0])
-                    joint_velocities = np.linalg.inv(J.T @ J + lambda_identity) @ J.T @ error
+                    lambda_identity = 1e-3 * np.eye(J.shape[1])
+                    joint_velocities = (
+                        np.linalg.inv(J.T @ J + lambda_identity) @ J.T @ error
+                    )
                     if verbose:
                         print(f"{i}: {joint_velocities}")
                     joint_angles -= 0.1 * joint_velocities
